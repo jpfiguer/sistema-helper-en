@@ -1,0 +1,36 @@
+{
+  "name": "sistema-helper-en",
+  "version": "1.0.0",
+  "description": "Entrenador de entrevistas técnicas en inglés para hispanohablantes: un entrevistador simulado por voz, y feedback medido sobre lo que dijiste.",
+  "main": "src/server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node scripts/preflight.js",
+    "reporte": "node scripts/report.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "interview-practice",
+    "english-coaching",
+    "speech-to-text",
+    "text-to-speech",
+    "deepgram",
+    "cartesia",
+    "groq",
+    "llm",
+    "real-time-audio"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.2.1",
+    "ws": "^8.21.0"
+  },
+  "_nota_dependencias": "Deepgram y Cartesia se hablan por WebSocket crudo con 'ws', sin sus SDK: el protocolo es estable y los SDK cambian de forma seguido. El I/O de audio es ffmpeg (binario del sistema, no npm) para no depender de un módulo nativo que compile.",
+  "_nota_sistema": "Requiere ffmpeg en el PATH: brew install ffmpeg. No requiere ningún dispositivo de audio virtual."
+}
