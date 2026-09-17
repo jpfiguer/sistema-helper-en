@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sistema-helper-en</title>
+<style>
+  :root{
+    --papel:#F7F7F5; --panel:#FFFFFF; --hundido:#EFEFEC;
+    --tinta:#14161A; --tinta-2:#4A5158; --tinta-3:#848B92;
+    --linea:#E0E0DB; --linea-fuerte:#BFC0B9;
+    --acento:#1F5F4E; --acento-suave:#E3EFEA;
+    --alerta:#9A3B24; --alerta-suave:#F6E7E2;
+    --aviso:#8A5A12; --aviso-suave:#F6EEDF;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --papel:#101214; --panel:#171A1D; --hundido:#14171A;
+      --tinta:#E8EAE7; --tinta-2:#A8AFB4; --tinta-3:#7C848A;
+      --linea:#262A2E; --linea-fuerte:#3A4045;
+      --acento:#4FBFA0; --acento-suave:#15302A;
+      --alerta:#E08060; --alerta-suave:#2E1C16;
+      --aviso:#D6A44F; --aviso-suave:#2B2214;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--papel);color:var(--tinta);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+  .hoja{max-width:940px;margin:0 auto;padding:28px 20px 80px}
+
+  header{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;justify-content:space-between;
+         padding-bottom:16px;border-bottom:2px solid var(--tinta)}
+  h1{margin:0;font-size:22px;letter-spacing:-.01em}
+  .sub{margin:4px 0 0;font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--acento)}
+  .chip{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--linea-fuerte);border-radius:999px;color:var(--tinta-2)}
+  .chip.vivo{background:var(--acento-suave);border-color:var(--acento-suave);color:var(--acento)}
+
+  .barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}
+  button{font:500 13.5px var(--sans);padding:9px 16px;border:1px solid var(--linea-fuerte);
+         background:var(--panel);color:var(--tinta);border-radius:6px;cursor:pointer}
+  button:hover:not(:disabled){border-color:var(--acento);color:var(--acento)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primario{background:var(--acento);border-color:var(--acento);color:#fff}
+  button.primario:hover:not(:disabled){filter:brightness(1.1);color:#fff}
+  button:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+  label.check{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--tinta-2)}
+
+  section{margin-top:26px}
+  .rotulo{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+          color:var(--tinta-3);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--linea)}
+  .tarjeta{background:var(--panel);border:1px solid var(--linea);border-radius:8px;padding:16px 18px}
+
+  .pregunta{font-size:18px;line-height:1.45;margin:0}
+  .pregunta.vacia{color:var(--tinta-3);font-size:15px}
+  .marca{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;
+         color:var(--aviso);background:var(--aviso-suave);padding:2px 7px;border-radius:4px;margin-left:8px}
+
+  .dicho{min-height:56px;font-size:15.5px;line-height:1.5;color:var(--tinta-2);white-space:pre-wrap}
+  .dicho.enVivo{color:var(--tinta)}
+  .cursor{display:inline-block;width:7px;height:17px;background:var(--acento);vertical-align:-3px;animation:parpadeo 1s steps(2) infinite}
+  @keyframes parpadeo{50%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){.cursor{animation:none}}
+
+  .metricas{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:1px;background:var(--linea);
+            border:1px solid var(--linea);border-radius:8px;overflow:hidden;margin-top:12px}
+  .met{background:var(--panel);padding:11px 13px}
+  .met b{display:block;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .met span{display:block;font-family:var(--mono);font-size:10.5px;color:var(--tinta-3);margin-top:3px}
+
+  ul.banderas{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+  ul.banderas li{font-size:13.5px;line-height:1.45;padding:8px 11px;border-left:3px solid var(--linea-fuerte);
+                 background:var(--hundido);border-radius:0 5px 5px 0}
+  li.ok{border-color:var(--acento);background:var(--acento-suave);color:var(--acento)}
+  li.aviso{border-color:var(--aviso);background:var(--aviso-suave);color:var(--aviso)}
+  li.alerta{border-color:var(--alerta);background:var(--alerta-suave);color:var(--alerta)}
+
+  .eje{margin-top:14px}
+  .eje h4{margin:0 0 4px;font-size:13px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--tinta-3)}
+  .eje p{margin:0;font-size:14px;color:var(--tinta-2)}
+  .nota{font-family:var(--mono);font-size:12px;color:var(--acento);margin-left:6px}
+  table.corr{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
+  table.corr td{padding:6px 8px;border-top:1px solid var(--linea);vertical-align:top}
+  table.corr td:first-child{color:var(--alerta);width:34%}
+  table.corr td:nth-child(2){color:var(--acento);width:34%}
+  table.corr td:last-child{color:var(--tinta-3);font-size:12.5px}
+
+  .reescritura{margin-top:14px;padding:13px 15px;background:var(--acento-suave);border-radius:7px;
+               font-size:15px;line-height:1.55;color:var(--tinta)}
+  .reescritura em{display:block;font-family:var(--mono);font-style:normal;font-size:10.5px;
+                  text-transform:uppercase;letter-spacing:.1em;color:var(--acento);margin-bottom:6px}
+  .unaCosa{margin-top:12px;font-size:14.5px;padding:11px 14px;border:1px dashed var(--linea-fuerte);border-radius:7px}
+  .unaCosa b{color:var(--acento)}
+
+  .avisos{margin-top:16px;display:flex;flex-direction:column;gap:6px}
+  .avisos div{font-family:var(--mono);font-size:12px;padding:8px 11px;border-radius:5px;
+              background:var(--alerta-suave);color:var(--alerta)}
+  .pie{margin-top:34px;padding-top:14px;border-top:1px solid var(--linea);
+       font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--tinta-3)}
+</style>
+</head>
+<body>
+<div class="hoja">
+
+  <header>
+    <div>
+      <p class="sub">Práctica de entrevistas en inglés</p>
+      <h1>sistema-helper-en</h1>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="chip" id="chipEstado">desconectado</span>
+      <span class="chip" id="chipProgreso">—</span>
+    </div>
+  </header>
+
+  <div class="barra">
+    <button class="primario" id="btnIniciar">Empezar sesión</button>
+    <button id="btnListo" disabled>Terminé de responder</button>
+    <button id="btnSiguiente" disabled>Siguiente pregunta</button>
+    <button id="btnRepetir" disabled>Repetir</button>
+    <button id="btnSaltar" disabled>Saltar</button>
+    <button id="btnFinalizar" disabled>Terminar</button>
+    <label class="check"><input type="checkbox" id="chkDificiles" checked> incluir preguntas difíciles</label>
+  </div>
+
+  <section>
+    <h2 class="rotulo">El entrevistador</h2>
+    <div class="tarjeta">
+      <p class="pregunta vacia" id="pregunta">Dale a «Empezar sesión». Vas a escuchar la pregunta por los parlantes y respondés en voz alta, en inglés.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="rotulo">Lo que estás diciendo</h2>
+    <div class="tarjeta">
+      <div class="dicho" id="dicho">—</div>
+      <div class="metricas" id="metricas" hidden></div>
+      <ul class="banderas" id="banderas"></ul>
+    </div>
+  </section>
+
+  <section id="secFeedback" hidden>
+    <h2 class="rotulo">Feedback</h2>
+    <div class="tarjeta" id="feedback"></div>
+  </section>
+
+  <section id="secResumen" hidden>
+    <h2 class="rotulo">Resumen de la sesión</h2>
+    <div class="tarjeta" id="resumen"></div>
+  </section>
+
+  <div class="avisos" id="avisos"></div>
+
+  <p class="pie">
+    El audio sale por los parlantes y el micrófono se abre solo cuando el entrevistador terminó de hablar.
+    Las métricas (palabras por minuto, muletillas) las calcula el código, no el modelo: son aritmética sobre
+    el transcript y los bytes de audio. El juicio de contenido e inglés sí es del modelo, y va por separado
+    para que puedas desconfiar de uno sin desconfiar del otro.
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var ws = null;
+  var estadoActual = 'idle';
+
+  var btn = {
+    iniciar: $('btnIniciar'), listo: $('btnListo'), siguiente: $('btnSiguiente'),
+    repetir: $('btnRepetir'), saltar: $('btnSaltar'), finalizar: $('btnFinalizar')
+  };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function aviso(txt) {
+    var d = document.createElement('div');
+    d.textContent = txt;
+    $('avisos').appendChild(d);
+    setTimeout(function () { d.remove(); }, 9000);
+  }
+
+  var ETIQUETA = {
+    idle: 'listo', preguntando: 'hablando el entrevistador',
+    escuchando: 'te escucho', evaluando: 'evaluando', esperando: 'leé el feedback'
+  };
+
+  function pintarEstado(e) {
+    estadoActual = e;
+    var chip = $('chipEstado');
+    chip.textContent = ETIQUETA[e] || e;
+    chip.className = 'chip' + (e === 'escuchando' ? ' vivo' : '');
+    btn.iniciar.disabled  = !(e === 'idle');
+    btn.listo.disabled    = !(e === 'escuchando');
+    btn.siguiente.disabled = !(e === 'esperando');
+    btn.repetir.disabled  = !(e === 'escuchando' || e === 'esperando');
+    btn.saltar.disabled   = (e === 'idle' || e === 'preguntando');
+    btn.finalizar.disabled = (e === 'idle');
+  }
+
+  function conectar() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+
+    ws.onopen = function () { pintarEstado('idle'); };
+    ws.onclose = function () {
+      $('chipEstado').textContent = 'desconectado';
+      $('chipEstado').className = 'chip';
+      Object.keys(btn).forEach(function (k) { btn[k].disabled = true; });
+      setTimeout(conectar, 1500);
+    };
+
+    ws.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+
+      switch (m.tipo) {
+        case 'estado':
+          pintarEstado(m.estado);
+          break;
+
+        case 'sesionIniciada':
+          $('secResumen').hidden = true;
+          $('secFeedback').hidden = true;
+          $('chipProgreso').textContent = '0 / ' + m.total;
+          break;
+
+        case 'pregunta':
+          $('pregunta').className = 'pregunta';
+          $('pregunta').innerHTML = esc(m.texto) +
+            (m.esSeguimiento ? '<span class="marca">repregunta</span>' : '');
+          $('chipProgreso').textContent = m.numero + ' / ' + m.total;
+          $('dicho').textContent = '—';
+          $('dicho').className = 'dicho';
+          $('metricas').hidden = true;
+          $('banderas').innerHTML = '';
+          $('secFeedback').hidden = true;
+          break;
+
+        case 'parcial':
+          $('dicho').className = 'dicho enVivo';
+          $('dicho').innerHTML = esc(m.texto) + '<span class="cursor"></span>';
+          break;
+
+        case 'parcialFinal':
+          $('dicho').className = 'dicho enVivo';
+          $('dicho').innerHTML = esc(m.texto) + '<span class="cursor"></span>';
+          break;
+
+        case 'respuesta':
+          $('dicho').className = 'dicho';
+          $('dicho').textContent = m.texto;
+          pintarMetricas(m.metricas);
+          break;
+
+        case 'evaluacion':
+          pintarEvaluacion(m.evaluacion);
+          break;
+
+        case 'resumen':
+          pintarResumen(m.resumen, m.archivo);
+          break;
+
+        case 'aviso':
+        case 'error':
+          aviso(m.mensaje);
+          break;
+
+        default:
+          break;
+      }
+    };
+  }
+
+  function pintarMetricas(x) {
+    var celdas = [
+      [x.palabras, 'palabras'],
+      [x.segundos + 's', 'duración'],
+      [x.wpm == null ? '—' : x.wpm, 'palabras/min'],
+      [x.rellenos, 'muletillas'],
+      [(x.densidadRellenos * 100).toFixed(1) + '%', 'densidad'],
+      [x.msHastaPrimera == null ? '—' : (x.msHastaPrimera / 1000).toFixed(1) + 's', 'antes de arrancar']
+    ];
+    $('metricas').innerHTML = celdas.map(function (c) {
+      return '<div class="met"><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>';
+    }).join('');
+    $('metricas').hidden = false;
+
+    $('banderas').innerHTML = (x.banderas || []).map(function (b) {
+      return '<li class="' + esc(b.nivel) + '">' + esc(b.texto) + '</li>';
+    }).join('');
+  }
+
+  function nota(n) { return n == null ? '' : '<span class="nota">' + esc(n) + '/5</span>'; }
+
+  function pintarEvaluacion(e) {
+    if (!e) return;
+    var html = '';
+
+    html += '<div class="eje"><h4>Contenido' + nota(e.contenido && e.contenido.nota) + '</h4><p>' +
+            esc(e.contenido && e.contenido.comentario) + '</p></div>';
+
+    html += '<div class="eje"><h4>Inglés' + nota(e.ingles && e.ingles.nota) + '</h4><p>' +
+            esc(e.ingles && e.ingles.comentario) + '</p>';
+    var corr = (e.ingles && e.ingles.correcciones) || [];
+    if (corr.length) {
+      html += '<table class="corr">' + corr.map(function (c) {
+        return '<tr><td>' + esc(c.dijiste) + '</td><td>' + esc(c.mejor) + '</td><td>' + esc(c.porque) + '</td></tr>';
+      }).join('') + '</table>';
+    }
+    html += '</div>';
+
+    if (e.entrega && e.entrega.comentario) {
+      html += '<div class="eje"><h4>Entrega</h4><p>' + esc(e.entrega.comentario) + '</p></div>';
+    }
+    if (e.reescritura) {
+      html += '<div class="reescritura"><em>Decilo así — leelo en voz alta</em>' + esc(e.reescritura) + '</div>';
+    }
+    if (e.una_cosa) {
+      html += '<div class="unaCosa"><b>Una sola cosa para la próxima:</b> ' + esc(e.una_cosa) + '</div>';
+    }
+    if (e.degradado) {
+      html += '<div class="unaCosa">El modelo no devolvió JSON válido; arriba va el texto crudo.</div>';
+    }
+
+    $('feedback').innerHTML = html;
+    $('secFeedback').hidden = false;
+  }
+
+  function pintarResumen(r, archivo) {
+    if (!r) {
+      $('resumen').textContent = 'La sesión terminó sin respuestas registradas.';
+    } else {
+      $('resumen').innerHTML =
+        '<div class="metricas" style="margin-top:0">' +
+          '<div class="met"><b>' + r.respuestas + '</b><span>respuestas</span></div>' +
+          '<div class="met"><b>' + r.palabrasTotales + '</b><span>palabras</span></div>' +
+          '<div class="met"><b>' + Math.round(r.segundosTotales / 6) / 10 + 'm</b><span>hablando</span></div>' +
+          '<div class="met"><b>' + (r.wpmPromedio == null ? '—' : r.wpmPromedio) + '</b><span>wpm promedio</span></div>' +
+          '<div class="met"><b>' + (r.densidadRellenosPromedio * 100).toFixed(1) + '%</b><span>muletillas</span></div>' +
+        '</div>' +
+        (archivo ? '<p style="font-family:var(--mono);font-size:11.5px;color:var(--tinta-3);margin:12px 0 0">' +
+                   'guardado en ' + esc(archivo) + ' · corré <code>npm run reporte</code> para ver el progreso entre sesiones</p>' : '');
+    }
+    $('secResumen').hidden = false;
+  }
+
+  function mandar(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+  btn.iniciar.addEventListener('click', function () {
+    mandar({ tipo: 'iniciar', incluirDificiles: $('chkDificiles').checked });
+  });
+  btn.listo.addEventListener('click', function () { mandar({ tipo: 'listo' }); });
+  btn.siguiente.addEventListener('click', function () { mandar({ tipo: 'siguiente' }); });
+  btn.repetir.addEventListener('click', function () { mandar({ tipo: 'repetir' }); });
+  btn.saltar.addEventListener('click', function () { mandar({ tipo: 'saltar' }); });
+  btn.finalizar.addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
+
+  // Espacio = "terminé de responder", que es el botón que más se usa y el que menos ganas
+  // tenés de buscar con el mouse mientras hablás.
+  document.addEventListener('keydown', function (ev) {
+    if (ev.code === 'Space' && estadoActual === 'escuchando' && ev.target === document.body) {
+      ev.preventDefault();
+      mandar({ tipo: 'listo' });
+    }
+  });
+
+  conectar();
+})();
+</script>
+</body>
+</html>

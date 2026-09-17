@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+logs/
+.DS_Store
+.vscode/
+.idea/
+
+# Sesiones de práctica: contienen el transcript literal de tu voz.
+sesiones/
+!sesiones/.gitkeep
