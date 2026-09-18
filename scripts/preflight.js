@@ -125,7 +125,7 @@ async function chequearGroq() {
 
 async function chequearCartesia() {
   if (!process.env.CARTESIA_API_KEY) { mal('Cartesia', 'Falta CARTESIA_API_KEY en .env'); return; }
-  if (!process.env.CARTESIA_VOICE_ID) { mal('Cartesia', 'Falta CARTESIA_VOICE_ID en .env — elegí una voz en play.cartesia.ai'); return; }
+  if (!process.env.CARTESIA_VOICE_ID) { mal('Cartesia', 'Falta CARTESIA_VOICE_ID en .env — elige una voz en play.cartesia.ai'); return; }
 
   try {
     const { textToSpeechStream } = require('../src/cartesiaSpeaker');
@@ -163,7 +163,7 @@ function chequearSalida() {
 
   console.log('');
   if (fallas === 0) {
-    console.log(`  ${VERDE}${NEG}Todo listo.${FIN} Arrancá con ${NEG}npm start${FIN} y abrí http://localhost:${process.env.PORT || 3002}\n`);
+    console.log(`  ${VERDE}${NEG}Todo listo.${FIN} Arranca con ${NEG}npm start${FIN} y abre http://localhost:${process.env.PORT || 3002}\n`);
     process.exit(0);
   }
   console.log(`  ${ROJO}${NEG}${fallas} cosa${fallas > 1 ? 's' : ''} por resolver${FIN} antes de practicar.\n`);

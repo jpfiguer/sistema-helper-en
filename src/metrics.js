@@ -2,7 +2,7 @@
  * Métricas de una respuesta hablada — calculadas con aritmética, no con el LLM.
  *
  * Por qué no se las pedimos al modelo: contar muletillas y calcular palabras por minuto son
- * operaciones determinísticas. Un LLM al que le pides "contá cuántas veces dijo 'um'" inventa
+ * operaciones determinísticas. Un LLM al que le pides "cuenta cuántas veces dijo 'um'" inventa
  * el número, y el error no es aleatorio: tiende a redondear hacia lo que suena razonable. Si
  * la métrica que usás para medir tu progreso alucina, el progreso que ves es ruido.
  *

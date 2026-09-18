@@ -2,7 +2,7 @@
  * Reproduce el audio del entrevistador por los parlantes.
  *
  * Reemplaza al router de audio de la versión anterior. La diferencia no es de implementación,
- * es de propósito: acá el audio sale por la salida real del sistema, para que lo escuches vos.
+ * es de propósito: acá el audio sale por la salida real del sistema, para que lo escuches tú.
  * No hay ruta hacia un micrófono virtual, y por eso este módulo no puede usarse para meter voz
  * sintética en una llamada.
  *

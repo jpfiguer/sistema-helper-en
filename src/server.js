@@ -163,7 +163,7 @@ async function hablar(ws, texto) {
     S.reproductor = null;
   }
   // Colchón para que ffmpeg drene el buffer antes de abrir el mic; sin esto el final de la
-  // pregunta se cuela por el micrófono y Deepgram lo transcribe como si lo hubieras dicho vos.
+  // pregunta se cuela por el micrófono y Deepgram lo transcribe como si lo hubieras dicho tú.
   await new Promise((r) => setTimeout(r, 400));
 }
 

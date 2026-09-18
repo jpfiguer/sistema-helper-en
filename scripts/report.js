@@ -110,7 +110,7 @@ function main() {
   const todas = cargar();
 
   if (!todas.length) {
-    console.log(`\n  No hay sesiones en ${DIR}.\n  Practicá una con ${NEG}npm start${FIN} y volvé.\n`);
+    console.log(`\n  No hay sesiones en ${DIR}.\n  Practica una con ${NEG}npm start${FIN} y vuelve.\n`);
     return;
   }
 

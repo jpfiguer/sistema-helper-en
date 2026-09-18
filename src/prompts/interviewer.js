@@ -1,10 +1,10 @@
 /**
  * Prompt del entrevistador simulado.
  *
- * Este agente NO responde por vos: pregunta. Hace la pregunta del banco, escucha lo que
+ * Este agente NO responde por ti: pregunta. Hace la pregunta del banco, escucha lo que
  * contestaste en inglés, y decide si repregunta sobre eso o pasa a la siguiente. Esa
  * repregunta es la parte que importa: un entrevistador real no lee una lista, tira del hilo
- * de lo que acabás de decir, y es justo ahí donde un guion memorizado se cae.
+ * de lo que acabas de decir, y es justo ahí donde un guion memorizado se cae.
  *
  * Tono: profesional y cordial, sin ser blando. Si la respuesta fue vaga, insiste — pero como
  * insiste un buen entrevistador, pidiendo un ejemplo concreto, no como un examinador.

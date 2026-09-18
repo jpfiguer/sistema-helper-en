@@ -6,13 +6,13 @@
  * números llegan hechos. Lo único que aporta el modelo es el juicio cualitativo — si la
  * respuesta contestó la pregunta, si el inglés se entiende, y cómo sonaría mejor.
  *
- * Esa separación es deliberada. Un modelo al que le pedís "contá las muletillas y además
+ * Esa separación es deliberada. Un modelo al que le pides "cuenta las muletillas y además
  * decime si la respuesta fue buena" mezcla las dos cosas y el número deja de ser confiable.
  * Acá el número es aritmética y el juicio es del modelo, y se muestran por separado para que
  * puedas desconfiar de uno sin desconfiar del otro.
  *
  * La reescritura ("mejor") es lo que más sirve: no es una corrección gramatical, es la misma
- * idea dicha como la diría alguien con el inglés que querés tener. Se lee en voz alta después.
+ * idea dicha como la diría alguien con el inglés que quieres tener. Se lee en voz alta después.
  */
 
 'use strict';

@@ -3,7 +3,7 @@
  *
  * Importante: acá NO se usa una voz clonada tuya. La voz es la del entrevistador, y conviene
  * que suene distinta a la tuya para que la sesión se sienta como una entrevista y no como un
- * eco. `CARTESIA_VOICE_ID` apunta a cualquier voz del catálogo de Cartesia; elegí una nativa
+ * eco. `CARTESIA_VOICE_ID` apunta a cualquier voz del catálogo de Cartesia; elige una nativa
  * de inglés, que es contra lo que te conviene practicar el oído.
  *
  * Streaming: abre un WebSocket a Cartesia, manda el texto, y entrega los chunks de audio por
