@@ -361,7 +361,7 @@
   btn.finalizar.addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
 
   // Espacio = "terminé de responder", que es el botón que más se usa y el que menos ganas
-  // tienes que buscar con el mouse mientras hablas.
+  // tienes de buscar con el mouse mientras hablas.
   document.addEventListener('keydown', function (ev) {
     if (ev.code === 'Space' && estadoActual === 'escuchando' && ev.target === document.body) {
       ev.preventDefault();
