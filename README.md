@@ -2,9 +2,9 @@
 
 Entrenador de entrevistas técnicas en inglés para hispanohablantes.
 
-Un entrevistador simulado te hace preguntas por voz, vos respondés **en voz alta en inglés**, y
-al terminar cada respuesta obtenés feedback en español: qué se entendió, qué frases arreglar, y
-la misma respuesta reescrita como la diría alguien con el inglés que querés tener.
+Un entrevistador simulado te hace preguntas por voz, respondes **en voz alta en inglés**, y
+al terminar cada respuesta obtienes feedback en español: qué se entendió, qué frases arreglar, y
+la misma respuesta reescrita como la diría alguien con el inglés que quieres tener.
 
 No te ayuda durante una entrevista real. Te prepara para no necesitar ayuda.
 
@@ -14,7 +14,7 @@ No te ayuda durante una entrevista real. Te prepara para no necesitar ayuda.
 └──────────┬───────────┘
            │ texto
            ▼
-   Cartesia TTS ──► parlantes          ← lo escuchás, como en un Meet
+   Cartesia TTS ──► parlantes          ← lo escuchas, como en un Meet
            │
            ▼  (el mic se abre RECIÉN acá)
    Tu micrófono ──► ffmpeg ──► Deepgram STT
@@ -48,15 +48,15 @@ se muestran por separado.**
 
 | | Lo calcula | Por qué |
 |---|---|---|
-| palabras por minuto | `metrics.js` | Es una división. Un LLM al que le pedís que cuente, inventa. |
+| palabras por minuto | `metrics.js` | Es una división. Un LLM al que le pides que cuente, inventa. |
 | muletillas y densidad | `metrics.js` | Idem, y el error del modelo no es aleatorio: redondea hacia lo que suena razonable. |
-| riqueza léxica | `metrics.js` | `únicas / total`, baja cuando te repetís por falta de vocabulario. |
+| riqueza léxica | `metrics.js` | `únicas / total`, baja cuando te repites por falta de vocabulario. |
 | silencio antes de arrancar | `metrics.js` | Se deriva de los bytes de audio, no de un reloj de red. |
 | ¿contestó la pregunta? | LLM | No tiene forma cerrada. |
 | ¿qué frase estuvo mal? | LLM | Idem. |
 | la reescritura | LLM | Idem. |
 
-Si la métrica con la que medís tu progreso puede alucinar, el progreso que ves es ruido. Por eso
+Si la métrica con la que mides tu progreso puede alucinar, el progreso que ves es ruido. Por eso
 la duración sale de los **bytes de PCM capturados** (32.000 bytes = 1 segundo a 16 kHz mono) y no
 de timestamps, y por eso el reporte de progreso entre sesiones no toca el LLM en ningún punto.
 
@@ -88,7 +88,7 @@ ninguna.
 Así que las restricciones están en el código, no en el README:
 
 - **No hay salida a micrófono virtual.** `audioPlayer.js` rechaza BlackHole, Loopback,
-  Soundflower, VB-Cable y VoiceMeeter por nombre, y tira si lo apuntás a uno. Hay un test que lo
+  Soundflower, VB-Cable y VoiceMeeter por nombre, y tira si lo apuntas a uno. Hay un test que lo
   verifica. Es lo único que hace que la restricción sobreviva a un fork.
 - **No se clona tu voz.** La voz sintética es la del entrevistador, y conviene que suene distinta
   a la tuya.
@@ -129,11 +129,11 @@ menos que una clase particular.
 
 ## Cómo se usa
 
-1. `npm start`, abrís `http://localhost:3002` y le das a **Empezar sesión**.
-2. Escuchás la pregunta por los parlantes. (**Repetir** la vuelve a decir.)
-3. Respondés en voz alta, en inglés. Ves el transcript en vivo mientras hablás.
-4. Cuando terminás: **barra espaciadora**, o esperás 3 segundos de silencio.
-5. Leés el feedback. **Leé la reescritura en voz alta** — esa es la parte que entrena.
+1. `npm start`, abres `http://localhost:3002` y le das a **Empezar sesión**.
+2. Escuchas la pregunta por los parlantes. (**Repetir** la vuelve a decir.)
+3. Respondes en voz alta, en inglés. Ves el transcript en vivo mientras hablas.
+4. Cuando terminas: **barra espaciadora**, o esperas 3 segundos de silencio.
+5. Lees el feedback. **Lee la reescritura en voz alta** — esa es la parte que entrena.
 6. **Siguiente pregunta** cuando estés listo.
 
 El set son 7 preguntas con la forma de una entrevista real: screening, tres técnicas, una de
@@ -143,7 +143,7 @@ de practicar contra esto en vez de contra una lista de preguntas.
 
 ```bash
 npm run reporte          # progreso entre sesiones
-npm run reporte -- --json | jq   # si querés graficarlo aparte
+npm run reporte -- --json | jq   # si quieres graficarlo aparte
 ```
 
 Desde la cuarta sesión el reporte compara las primeras tres contra las últimas tres. Antes de eso
@@ -159,10 +159,10 @@ Todo en `.env` (ver `.env.example` para la lista completa).
 | Variable | Default | Para qué |
 |---|---|---|
 | `ROLES_OBJETIVO` | Senior Data Engineer, AI Engineer, Data Architect | ajusta el nivel y vocabulario de las preguntas |
-| `CARTESIA_SPEED` | `1.0` | subilo a 1.2 cuando ya sigas al entrevistador cómodo |
-| `SILENCIO_FIN_MS` | `3000` | subilo si te corta mientras pensás |
+| `CARTESIA_SPEED` | `1.0` | súbelo a 1.2 cuando ya sigas al entrevistador cómodo |
+| `SILENCIO_FIN_MS` | `3000` | súbelo si te corta mientras piensas |
 | `DEEPGRAM_ENDPOINTING` | `1200` | ms de silencio para cerrar un segmento de transcript |
-| `GROQ_MODEL_EVAL` | = `GROQ_MODEL` | el evaluador puede ser más grande: corre cuando ya no esperás |
+| `GROQ_MODEL_EVAL` | = `GROQ_MODEL` | el evaluador puede ser más grande: corre cuando ya no esperas |
 
 ---
 
@@ -177,9 +177,9 @@ Las decisiones que costaron tiempo y que un lector agradecería tener escritas:
 - **Al medir el ritmo se descuenta el silencio inicial.** Si tardaste 5 segundos en arrancar,
   esos 5 segundos no son parte de tu respuesta; contarlos hundiría las palabras por minuto sin
   que hayas hablado distinto.
-- **Deepgram con `endpointing=1200`, no 800.** Al practicar hacés pausas más largas que un
+- **Deepgram con `endpointing=1200`, no 800.** Al practicar haces pausas más largas que un
   nativo; con 800 una respuesta se partía en dos y el conteo de palabras por respuesta quedaba mal.
-- **nova-3 "arregla" un poco lo que decís** — completa artículos, corrige concordancias. Es un
+- **nova-3 "arregla" un poco lo que dices** — completa artículos, corrige concordancias. Es un
   sesgo optimista conocido: el transcript se ve mejor que el audio. Las muletillas sí sobreviven,
   que es lo que más importa acá. Está anotado en `deepgramListener.js` para que nadie se pregunte
   por qué el feedback gramatical parece indulgente.

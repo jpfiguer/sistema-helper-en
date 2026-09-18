@@ -10,7 +10,7 @@
  *
  *   npm run check
  *
- * Sale con 0 si podés practicar, 1 si falta algo.
+ * Sale con 0 si puedes practicar, 1 si falta algo.
  */
 
 'use strict';

@@ -2,7 +2,7 @@
  * Log de cada sesión de práctica a JSONL — una línea JSON por evento, en orden cronológico.
  *
  * No es un log de depuración: es el set de evaluación. La idea es la misma que se usa para
- * medir un sistema de RAG en producción — el conjunto contra el que te medís no se escribe,
+ * medir un sistema de RAG en producción — el conjunto contra el que te mides no se escribe,
  * se captura. Tus respuestas reales de la semana pasada son el baseline de esta semana, y
  * `scripts/report.js` lee estos archivos para mostrar si mejoraste o si te lo estás
  * imaginando.
@@ -10,10 +10,10 @@
  * Decisiones:
  * - Un archivo por sesión, con la fecha en el nombre. Sin rotación ni índice: son chicos.
  * - El archivo se crea RECIÉN con el primer evento real, para no dejar archivos vacíos cada
- *   vez que arrancás el server a probar algo.
+ *   vez que arrancas el server a probar algo.
  * - Escritura append, sin await: un fallo de disco no puede frenar la práctica. El error se
  *   logea una vez y el resto de la sesión sigue sin log.
- * - JSONL y no JSON: se puede seguir con `tail -f` mientras practicás, y cada línea es válida
+ * - JSONL y no JSON: se puede seguir con `tail -f` mientras practicas, y cada línea es válida
  *   aunque el proceso muera a la mitad.
  *
  * Apagado con SESSION_LOG=off. El directorio va gitignored: contiene tu voz transcripta.

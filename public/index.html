@@ -126,7 +126,7 @@
   <section>
     <h2 class="rotulo">El entrevistador</h2>
     <div class="tarjeta">
-      <p class="pregunta vacia" id="pregunta">Dale a «Empezar sesión». Vas a escuchar la pregunta por los parlantes y respondés en voz alta, en inglés.</p>
+      <p class="pregunta vacia" id="pregunta">Dale a «Empezar sesión». Vas a escuchar la pregunta por los parlantes y respondes en voz alta, en inglés.</p>
     </div>
   </section>
 
@@ -187,7 +187,7 @@
 
   var ETIQUETA = {
     idle: 'listo', preguntando: 'hablando el entrevistador',
-    escuchando: 'te escucho', evaluando: 'evaluando', esperando: 'leé el feedback'
+    escuchando: 'te escucho', evaluando: 'evaluando', esperando: 'lee el feedback'
   };
 
   function pintarEstado(e) {
@@ -361,7 +361,7 @@
   btn.finalizar.addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
 
   // Espacio = "terminé de responder", que es el botón que más se usa y el que menos ganas
-  // tenés de buscar con el mouse mientras hablás.
+  // tienes de buscar con el mouse mientras hablas.
   document.addEventListener('keydown', function (ev) {
     if (ev.code === 'Space' && estadoActual === 'escuchando' && ev.target === document.body) {
       ev.preventDefault();

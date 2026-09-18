@@ -10,7 +10,7 @@
  * Cada pregunta trae:
  *   id        estable, para poder comparar sesiones entre sí
  *   fase      screening | tecnica | profundidad | comportamiento | cierre
- *   area      etiqueta temática, para filtrar por lo que querés practicar
+ *   area      etiqueta temática, para filtrar por lo que quieres practicar
  *   texto     la pregunta, tal como la haría un entrevistador
  *   dificil   si conviene dejarla para cuando ya estés cómodo
  *

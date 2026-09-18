@@ -2,7 +2,7 @@
  * Métricas de una respuesta hablada — calculadas con aritmética, no con el LLM.
  *
  * Por qué no se las pedimos al modelo: contar muletillas y calcular palabras por minuto son
- * operaciones determinísticas. Un LLM al que le pedís "contá cuántas veces dijo 'um'" inventa
+ * operaciones determinísticas. Un LLM al que le pides "contá cuántas veces dijo 'um'" inventa
  * el número, y el error no es aleatorio: tiende a redondear hacia lo que suena razonable. Si
  * la métrica que usás para medir tu progreso alucina, el progreso que ves es ruido.
  *
@@ -52,7 +52,7 @@ const RELLENOS_PALABRA = [
  * Esta separación salió de un test que fallaba. Estaban en la lista de arriba y se contaban
  * siempre, lo que inflaba el número con usos perfectamente correctos: "it works **well**",
  * "the **right** answer", "**so** we migrated it" — ahí "so" es una conjunción, no una
- * muletilla. Arrancar la respuesta con "So…" o "Well…" sí es el tic que querés ver bajar.
+ * muletilla. Arrancar la respuesta con "So…" o "Well…" sí es el tic que quieres ver bajar.
  * Sin esta distinción la métrica medía vocabulario en vez de fluidez.
  */
 const RELLENOS_APERTURA = ['so', 'well', 'okay', 'ok', 'right', 'anyway', 'yeah', 'yes'];

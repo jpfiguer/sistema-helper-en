@@ -1,5 +1,5 @@
 /**
- * Captura de tu micrófono — el audio que se transcribe sos vos hablando en inglés.
+ * Captura de tu micrófono — el audio que se transcribe sos tú hablando en inglés.
  *
  * En la versión anterior este módulo capturaba al entrevistador desde un dispositivo de
  * loopback. Acá el sentido está invertido: la entrada es tu micrófono real, porque lo que se

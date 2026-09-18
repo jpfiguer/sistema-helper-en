@@ -5,7 +5,7 @@
  * versiones). Transcribe tu inglés hablado desde el PCM 16k mono que entrega audioCapture.
  *
  * Nota sobre el modelo: nova-3 en en-US transcribe bien a hispanohablantes, pero "arregla"
- * parte de lo que decís — completa artículos y corrige concordancias. Para medir fluidez eso
+ * parte de lo que dices — completa artículos y corrige concordancias. Para medir fluidez eso
  * es un sesgo optimista conocido: el transcript se ve mejor que el audio. Las muletillas sí
  * sobreviven, que es lo que más importa acá. Está anotado porque un día alguien se va a
  * preguntar por qué el feedback gramatical parece indulgente.
@@ -27,12 +27,12 @@ const { EventEmitter } = require('events');
 
 const DEFAULTS = {
   model: 'nova-3',
-  language: process.env.DEEPGRAM_LANGUAGE || 'en-US',   // vos hablás en inglés
+  language: process.env.DEEPGRAM_LANGUAGE || 'en-US',   // tú hablas en inglés
   encoding: 'linear16',  // PCM 16-bit LE (lo que sale de audioCapture)
   sampleRate: 16000,
   channels: 1,
   smartFormat: true,
-  // ms de silencio para cerrar un final. Sube a 1200 por defecto acá: al practicar hacés
+  // ms de silencio para cerrar un final. Sube a 1200 por defecto acá: al practicar haces
   // pausas más largas que un nativo y con 800 se te cortaba la respuesta a la mitad, lo que
   // rompía el conteo de palabras por respuesta.
   // (Historia del valor original, medido en la versión anterior:) con 300 una pausa normal en

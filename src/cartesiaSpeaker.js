@@ -27,7 +27,7 @@ const SAMPLE_RATE = Number(process.env.CARTESIA_SAMPLE_RATE ?? 24000);
  * que amplificar después.
  */
 // speed 1.0 a propósito: un entrevistador acelerado te entrena a entender rápido antes de
-// entender bien. Si ya te resulta fácil, subilo a 1.1–1.2 desde el .env — ese es el ejercicio.
+// entender bien. Si ya te resulta fácil, súbelo a 1.1–1.2 desde el .env — ese es el ejercicio.
 const GENERATION_CONFIG = {
   speed: Number(process.env.CARTESIA_SPEED ?? 1.0),
   volume: Number(process.env.CARTESIA_VOLUME ?? 1.5),
