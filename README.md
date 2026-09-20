@@ -92,6 +92,64 @@ Las restricciones están en el código, no en el README:
 
 ---
 
+## Los dos modos
+
+**Entrevista** — un entrevistador simulado te pregunta, improvisas, y el feedback llega al
+final de cada respuesta. Repregunta hasta dos veces si fuiste vago. Simula la presión: acá no
+hay corrección en vivo a propósito, porque un entrevistador que te corrige deja de entrevistar
+y empieza a enseñar.
+
+**Lectura** — el texto está en pantalla, lo lees en voz alta, y te corrige **frase por frase,
+en el momento**. Construye fluidez motora. Son dos ejercicios distintos y por eso no comparten
+el ciclo.
+
+### Por qué la corrección de pronunciación solo existe en modo lectura
+
+Para señalar qué palabra pronunciaste mal hay que saber **qué palabra ibas a decir**. Improvisando
+no se puede: un transcript raro puede ser una mala pronunciación o puede ser que cambiaste de idea
+a mitad de frase. Con el texto esperado delante, la diferencia entre los dos es medible.
+
+`alignment.js` alinea lo esperado contra lo que Deepgram oyó (Needleman-Wunsch sobre tokens) y
+clasifica cada palabra:
+
+| | |
+|---|---|
+| **cambiada** | la pronunciaste tan distinto que se volvió otra — te dice cuál se oyó |
+| **omitida** | te la comiste entera |
+| **dudosa** | es la correcta, pero el modelo apenas la reconoció |
+| **agregada** | repetición o autocorrección; no baja tu precisión |
+
+Al final de la sesión, las palabras ordenadas por cuántas veces te costaron. Esa es la señal que
+sirve entre sesiones.
+
+### Qué NO detecta
+
+Deepgram es un transcriptor, no un evaluador de pronunciación, y nova-3 además "arregla" lo que
+dices. Entonces:
+
+- **Sí** detecta palabras que se convierten en otra (`focus`, `beach`, `sheet` — los clásicos),
+  palabras comidas, palabras apenas reconocidas, repeticiones.
+- **No** detecta acento sobre la palabra correcta, duración de vocales, sílaba tónica corrida ni
+  entonación. Si dices `development` con el acento mal pero se entiende, pasa limpio.
+
+Para eso hace falta una API que puntúe fonema por fonema (Azure Speech tiene una). Esto cubre lo
+grueso sin agregar un cuarto proveedor, y lo grueso es lo que te hace perder una entrevista.
+
+**Dos detalles que evitan que el reporte sea ruido:** las contracciones se expanden en ambos lados
+(si no, cada `don't` aparecía como omitida + agregada), y los números escritos con dígitos no se
+evalúan — el texto dice `2,700` y tú dices *twenty-seven hundred*, las dos correctas.
+
+**Largo de las frases: entre 8 y 20 palabras.** Es una respiración y un `final` de Deepgram. Más
+largo y el endpointing parte la frase, la alineación queda a medias y el feedback culpa a palabras
+que sí dijiste. Hay un test que lo verifica.
+
+### Atajo
+
+En modo lectura la **barra espaciadora** hace todo el ciclo: arranca la frase, la cierra, y pasa a
+la siguiente. Lees una respuesta entera sin soltarla.
+
+---
+
 ## Instalación
 
 Requiere **Node ≥ 20**, **ffmpeg**, y tres claves de API. No requiere ningún dispositivo de audio
