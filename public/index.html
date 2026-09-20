@@ -113,7 +113,13 @@
     </div>
   </header>
 
-  <div class="barra">
+  <div class="modos">
+    <button id="tabEntrevista" class="tab" aria-pressed="true">Entrevista</button>
+    <button id="tabLectura" class="tab" aria-pressed="false">Lectura</button>
+    <span class="modoNota" id="modoNota">Improvisas y el feedback llega al final. Simula la presión.</span>
+  </div>
+
+  <div class="barra" id="barraEntrevista">
     <button class="primario" id="btnIniciar">Empezar sesión</button>
     <button id="btnListo" disabled>Terminé de responder</button>
     <button id="btnSiguiente" disabled>Siguiente pregunta</button>
@@ -123,14 +129,79 @@
     <label class="check"><input type="checkbox" id="chkDificiles" checked> incluir preguntas difíciles</label>
   </div>
 
-  <section>
+  <div class="barra" id="barraLectura" hidden>
+    <button class="primario" id="btnIniciarLec">Empezar lectura</button>
+    <button id="btnEscuchar" disabled>Escuchar la frase</button>
+    <button id="btnLeer" disabled>Leer ahora</button>
+    <button id="btnListoLec" disabled>Terminé la frase</button>
+    <button id="btnOtraVez" disabled>Otra vez</button>
+    <button id="btnSigFrase" disabled>Siguiente frase</button>
+    <button id="btnFinLec" disabled>Terminar</button>
+    <select id="selRonda" aria-label="Qué practicar"><option value="">Todas las respuestas</option></select>
+  </div>
+
+  <section id="secLectura" hidden>
+    <h2 class="rotulo">Lee esta frase</h2>
+    <div class="tarjeta">
+      <p class="lecMeta" id="lecMeta">—</p>
+      <p class="lecFrase" id="lecFrase">Dale a «Empezar lectura».</p>
+      <div class="lecCorr" id="lecCorr" hidden></div>
+      <p class="lecOido" id="lecOido" hidden></p>
+    </div>
+  </section>
+
+  <style>
+    /* ── modo lectura ───────────────────────────────────────────────────────── */
+
+    /* `.barra` es display:flex, que le gana a la regla por defecto de [hidden] y dejaba las
+       dos barras visibles al cambiar de modo. Con !important, `hidden` vuelve a significar
+       oculto para cualquier elemento, tenga el display que tenga. */
+    [hidden]{display:none!important}
+
+    .modos{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:14px 0 10px}
+    .tab{font:inherit;font-size:13px;padding:6px 14px;cursor:pointer;
+         border:1px solid currentColor;background:transparent;opacity:.55}
+    .tab[aria-pressed=true]{opacity:1;font-weight:600}
+    .modoNota{font-size:12.5px;opacity:.6;margin-left:4px}
+
+    .lecMeta{font-size:12px;opacity:.6;margin:0 0 9px;letter-spacing:.03em}
+    .lecFrase{font-size:24px;line-height:1.45;margin:0;font-weight:500}
+    .lecOido{font-size:13.5px;opacity:.65;margin:11px 0 0;font-style:italic}
+    .lecCorr{font-size:24px;line-height:1.55;margin:0}
+    .lecCorr w{display:inline-block;padding:1px 3px;margin:0 1px;border-radius:3px}
+
+    /* Cada estado trae además un símbolo: el color nunca es la única señal. */
+    .lecCorr w.ok{}
+    .lecCorr w.dudosa{background:#F6E7C8;color:#6B4A0B}
+    .lecCorr w.cambiada{background:#F3D6CF;color:#7A2A15;text-decoration:underline wavy}
+    .lecCorr w.omitida{background:#E6E3DC;color:#6A655C;text-decoration:line-through}
+    .lecCorr w.agregada{opacity:.45;font-style:italic}
+    .lecCorr w.sin-evaluar{opacity:.75}
+    .lecCorr .oida{font-size:14px;opacity:.75;margin-left:3px}
+
+    .lecResumen w{display:inline}
+    .lecTabla{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+    .lecTabla th{text-align:left;font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.55;padding:5px 8px 5px 0;font-weight:600}
+    .lecTabla td{padding:6px 8px 6px 0;border-top:1px solid currentColor;border-color:rgba(128,128,128,.22)}
+    .lecTabla .pal{font-weight:600}
+    .lecTabla .como{opacity:.65;font-style:italic}
+
+    @media (prefers-color-scheme:dark){
+      .lecCorr w.dudosa{background:#3A2E12;color:#E5C57C}
+      .lecCorr w.cambiada{background:#3B1D15;color:#E8A08A}
+      .lecCorr w.omitida{background:#26241F;color:#8A857B}
+    }
+    @media (max-width:640px){ .lecFrase,.lecCorr{font-size:20px} }
+  </style>
+
+  <section id="secPregunta">
     <h2 class="rotulo">El entrevistador</h2>
     <div class="tarjeta">
       <p class="pregunta vacia" id="pregunta">Dale a «Empezar sesión». Vas a escuchar la pregunta por los parlantes y respondes en voz alta, en inglés.</p>
     </div>
   </section>
 
-  <section>
+  <section id="secDicho">
     <h2 class="rotulo">Lo que estás diciendo</h2>
     <div class="tarjeta">
       <div class="dicho" id="dicho">—</div>
@@ -187,20 +258,113 @@
 
   var ETIQUETA = {
     idle: 'listo', preguntando: 'hablando el entrevistador',
-    escuchando: 'te escucho', evaluando: 'evaluando', esperando: 'lee el feedback'
+    escuchando: 'te escucho', evaluando: 'evaluando', esperando: 'lee el feedback',
+    'lectura:lista': 'lee cuando quieras', 'lectura:sonando': 'escucha',
+    'lectura:corregido': 'mira la corrección'
   };
+
+  // ── modo ──────────────────────────────────────────────────────────────────
+  var modo = 'entrevista';
+  var NOTA_MODO = {
+    entrevista: 'Improvisas y el feedback llega al final. Simula la presión.',
+    lectura: 'Lees en voz alta y te corrige frase por frase. Construye fluidez.'
+  };
+
+  function cambiarModo(m) {
+    modo = m;
+    $('tabEntrevista').setAttribute('aria-pressed', String(m === 'entrevista'));
+    $('tabLectura').setAttribute('aria-pressed', String(m === 'lectura'));
+    $('modoNota').textContent = NOTA_MODO[m];
+    $('barraEntrevista').hidden = m !== 'entrevista';
+    $('barraLectura').hidden = m !== 'lectura';
+    $('secLectura').hidden = m !== 'lectura';
+    // Las secciones de entrevista no sirven en lectura y solo hacen ruido en pantalla.
+    $('secPregunta').hidden = m !== 'entrevista';
+    $('secDicho').hidden = m !== 'entrevista';
+    $('secFeedback').hidden = true;
+    $('secResumen').hidden = true;
+    pintarEstado(estadoActual);
+  }
 
   function pintarEstado(e) {
     estadoActual = e;
     var chip = $('chipEstado');
     chip.textContent = ETIQUETA[e] || e;
     chip.className = 'chip' + (e === 'escuchando' ? ' vivo' : '');
+
     btn.iniciar.disabled  = !(e === 'idle');
     btn.listo.disabled    = !(e === 'escuchando');
     btn.siguiente.disabled = !(e === 'esperando');
     btn.repetir.disabled  = !(e === 'escuchando' || e === 'esperando');
     btn.saltar.disabled   = (e === 'idle' || e === 'preguntando');
     btn.finalizar.disabled = (e === 'idle');
+
+    var enLec = e.indexOf('lectura:') === 0;
+    $('btnIniciarLec').disabled = !(e === 'idle');
+    $('btnEscuchar').disabled   = !(e === 'lectura:lista' || e === 'lectura:corregido');
+    $('btnLeer').disabled       = !(e === 'lectura:lista');
+    $('btnListoLec').disabled   = !(e === 'escuchando' && modo === 'lectura');
+    $('btnOtraVez').disabled    = !(enLec || (e === 'escuchando' && modo === 'lectura'));
+    $('btnSigFrase').disabled   = !(e === 'lectura:corregido');
+    $('btnFinLec').disabled     = (e === 'idle');
+    $('selRonda').disabled      = !(e === 'idle');
+  }
+
+  /** Pinta la frase con cada palabra marcada según cómo salió. */
+  function pintarCorreccion(d) {
+    var html = (d.items || []).map(function (it) {
+      var txt = it.tipo === 'agregada' ? it.oida : it.esperada;
+      var extra = '';
+      if (it.tipo === 'cambiada' && it.oida) extra = '<span class="oida">se oyó «' + esc(it.oida) + '»</span>';
+      return '<w class="' + it.tipo + '">' + esc(txt) + '</w>' + extra;
+    }).join(' ');
+    $('lecCorr').innerHTML = html;
+    $('lecCorr').hidden = false;
+    $('lecFrase').hidden = true;
+
+    var r = d.resumen || {};
+    var partes = [];
+    if (r.cambiada) partes.push(r.cambiada + ' cambiada' + (r.cambiada > 1 ? 's' : ''));
+    if (r.omitida) partes.push(r.omitida + ' comida' + (r.omitida > 1 ? 's' : ''));
+    if (r.dudosa) partes.push(r.dudosa + ' dudosa' + (r.dudosa > 1 ? 's' : ''));
+    var pct = r.precision == null ? '—' : Math.round(r.precision * 100) + '%';
+    $('lecOido').innerHTML = '<b>' + pct + ' limpio</b>' +
+      (partes.length ? ' · ' + esc(partes.join(' · ')) : ' · salió entera') +
+      '<br>Se oyó: ' + esc(d.oido);
+    $('lecOido').hidden = false;
+  }
+
+  function pintarFrase(d) {
+    $('lecMeta').textContent = d.ronda + ' · ' + d.pregunta +
+      '  —  frase ' + d.indiceFrase + ' de ' + d.totalEnLectura;
+    $('lecFrase').textContent = d.texto;
+    $('lecFrase').hidden = false;
+    $('lecCorr').hidden = true;
+    $('lecOido').hidden = true;
+    $('chipProgreso').textContent = d.hechas + '/' + d.total + ' frases';
+  }
+
+  function pintarResumenLectura(r, archivo) {
+    var pct = r.precision == null ? '—' : Math.round(r.precision * 100) + '%';
+    var html = '<div class="metricas" style="margin-top:0">' +
+      '<div class="met"><b>' + r.frases + '</b><span>frases leídas</span></div>' +
+      '<div class="met"><b>' + r.palabrasEvaluadas + '</b><span>palabras evaluadas</span></div>' +
+      '<div class="met"><b>' + pct + '</b><span>salieron limpias</span></div>' +
+      '</div>';
+    if (r.palabras && r.palabras.length) {
+      html += '<h4 style="margin:18px 0 0">Las que más te costaron</h4>' +
+        '<table class="lecTabla"><thead><tr><th>Palabra</th><th>Veces</th><th>Se oyó como</th></tr></thead><tbody>' +
+        r.palabras.map(function (p) {
+          return '<tr><td class="pal">' + esc(p.palabra) + '</td><td>' + p.veces + '</td>' +
+                 '<td class="como">' + esc((p.oidaComo || []).join(', ') || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>' +
+        '<p style="font-size:12.5px;opacity:.6;margin-top:10px">Esto detecta palabras que se convirtieron en otra, que te comiste, o que el transcriptor apenas reconoció. No detecta acento sobre la palabra correcta.</p>';
+    } else {
+      html += '<p style="margin-top:14px">Ninguna palabra dio problema. Sube el ritmo o pasa a otra respuesta.</p>';
+    }
+    if (archivo) html += '<p style="font-size:12px;opacity:.55;margin-top:12px">' + esc(archivo) + '</p>';
+    $('resumen').innerHTML = html;
+    $('secResumen').hidden = false;
   }
 
   function conectar() {
@@ -263,6 +427,24 @@
 
         case 'resumen':
           pintarResumen(m.resumen, m.archivo);
+          break;
+
+        case 'lecturaIniciada':
+          $('secResumen').hidden = true;
+          $('chipProgreso').textContent = '0/' + m.total + ' frases';
+          break;
+
+        case 'frase':
+          pintarFrase(m);
+          break;
+
+        case 'correccion':
+          pintarCorreccion(m);
+          $('chipProgreso').textContent = m.hechas + '/' + m.total + ' frases';
+          break;
+
+        case 'resumenLectura':
+          pintarResumenLectura(m.resumen, m.archivo);
           break;
 
         case 'aviso':
@@ -360,15 +542,40 @@
   btn.saltar.addEventListener('click', function () { mandar({ tipo: 'saltar' }); });
   btn.finalizar.addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
 
-  // Espacio = "terminé de responder", que es el botón que más se usa y el que menos ganas
-  // tienes de buscar con el mouse mientras hablas.
+  // ── controles de lectura ──────────────────────────────────────────────────
+  $('tabEntrevista').addEventListener('click', function () { cambiarModo('entrevista'); });
+  $('tabLectura').addEventListener('click', function () { cambiarModo('lectura'); });
+
+  $('btnIniciarLec').addEventListener('click', function () {
+    mandar({ tipo: 'iniciarLectura', ronda: $('selRonda').value || null });
+  });
+  $('btnEscuchar').addEventListener('click', function () { mandar({ tipo: 'escucharFrase' }); });
+  $('btnLeer').addEventListener('click', function () { mandar({ tipo: 'leerFrase' }); });
+  $('btnListoLec').addEventListener('click', function () { mandar({ tipo: 'listo' }); });
+  $('btnOtraVez').addEventListener('click', function () { mandar({ tipo: 'reintentarFrase' }); });
+  $('btnSigFrase').addEventListener('click', function () { mandar({ tipo: 'siguienteFrase' }); });
+  $('btnFinLec').addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
+
+  fetch('/api/rondas').then(function (r) { return r.json(); }).then(function (d) {
+    (d.rondas || []).forEach(function (x) {
+      var o = document.createElement('option');
+      o.value = x; o.textContent = x;
+      $('selRonda').appendChild(o);
+    });
+  }).catch(function () { /* el selector queda con «Todas» y funciona igual */ });
+
+  // Espacio = "terminé", que es el botón que más se usa y el que menos ganas tienes de buscar
+  // con el mouse mientras hablas. En lectura hace lo mismo, y además arranca la frase: así
+  // lees toda una respuesta sin soltar la barra espaciadora.
   document.addEventListener('keydown', function (ev) {
-    if (ev.code === 'Space' && estadoActual === 'escuchando' && ev.target === document.body) {
-      ev.preventDefault();
-      mandar({ tipo: 'listo' });
-    }
+    if (ev.code !== 'Space' || ev.target !== document.body) return;
+    if (estadoActual === 'escuchando') { ev.preventDefault(); mandar({ tipo: 'listo' }); return; }
+    if (modo !== 'lectura') return;
+    if (estadoActual === 'lectura:lista') { ev.preventDefault(); mandar({ tipo: 'leerFrase' }); return; }
+    if (estadoActual === 'lectura:corregido') { ev.preventDefault(); mandar({ tipo: 'siguienteFrase' }); }
   });
 
+  cambiarModo('entrevista');
   conectar();
 })();
 </script>

@@ -34,6 +34,8 @@ const { textToSpeechStream, SAMPLE_RATE } = require('./cartesiaSpeaker');
 const { crearReproductor } = require('./audioPlayer');
 const { entrevistar, evaluar, MODELO } = require('./agents');
 const { armarSet, areasTecnicas } = require('./questionBank');
+const { armarLectura, rondas, contarFrases } = require('./lecturas');
+const { compararFrase, palabrasATrabajar } = require('./alignment');
 const { medirRespuesta, promediar } = require('./metrics');
 const sesion = require('./sessionLog');
 
@@ -45,6 +47,7 @@ const SILENCIO_FIN_MS = Number(process.env.SILENCIO_FIN_MS ?? 3000);
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/api/areas', (_req, res) => res.json({ areas: areasTecnicas() }));
+app.get('/api/rondas', (_req, res) => res.json({ rondas: rondas() }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -52,8 +55,50 @@ const wss = new WebSocketServer({ server });
 /** Estado de la única sesión viva. `null` cuando no hay ninguna. */
 let S = null;
 
+/**
+ * Sesión de lectura. Comparte la captura de audio con la de entrevista pero no el ciclo:
+ * acá no hay entrevistador ni evaluador LLM. Lo que se mide es la distancia entre la frase
+ * que tenías que leer y lo que Deepgram oyó, que es aritmética sobre la alineación.
+ */
+function nuevaSesionLectura(opts) {
+  const lecturas = armarLectura(opts);
+  return {
+    modo: 'lectura',
+    lecturas,
+    iLectura: 0,
+    iFrase: 0,
+    totalFrases: contarFrases(lecturas),
+    frasesHechas: 0,
+    comparaciones: [],
+    // captura en curso (mismos campos que la sesión de entrevista)
+    estado: 'idle',
+    pararCaptura: null,
+    dg: null,
+    bytes: 0,
+    finales: [],
+    palabras: [],
+    parcial: '',
+    tsAbrioMic: 0,
+    tsPrimeraPalabra: null,
+    timerSilencio: null,
+    reproductor: null,
+    metricas: [],
+    iniciada: new Date().toISOString(),
+  };
+}
+
+/** La frase que toca leer ahora, o null si se acabaron. */
+function fraseActual() {
+  const lec = S?.lecturas?.[S.iLectura];
+  if (!lec) return null;
+  const texto = lec.frases[S.iFrase];
+  if (texto == null) return null;
+  return { texto, lectura: lec };
+}
+
 function nuevaSesion(opts) {
   return {
+    modo: 'entrevista',
     preguntas: armarSet(opts),
     indice: 0,
     seguimientos: 0,
@@ -65,6 +110,7 @@ function nuevaSesion(opts) {
     dg: null,
     bytes: 0,
     finales: [],
+    palabras: [],
     parcial: '',
     tsAbrioMic: 0,
     tsPrimeraPalabra: null,
@@ -173,6 +219,7 @@ function abrirMicrofono(ws) {
   estado(ws, 'escuchando');
   S.bytes = 0;
   S.finales = [];
+  S.palabras = [];
   S.parcial = '';
   S.tsAbrioMic = Date.now();
   S.tsPrimeraPalabra = null;
@@ -187,9 +234,12 @@ function abrirMicrofono(ws) {
     rearmarSilencio(ws);
   });
 
-  dg.on('final', ({ text }) => {
+  dg.on('final', ({ text, words }) => {
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.finales.push(text);
+    // Palabra por palabra con su confianza: es lo único que permite señalar cuál
+    // pronunciaste mal. En modo entrevista se acumula igual y no se usa.
+    if (Array.isArray(words) && words.length) S.palabras.push(...words);
     S.parcial = '';
     enviar(ws, 'parcialFinal', { texto: S.finales.join(' ') });
     rearmarSilencio(ws);
@@ -219,9 +269,91 @@ function pararEscucha() {
   if (S.dg) { try { S.dg.close(); } catch { /* noop */ } S.dg = null; }
 }
 
+// ── modo lectura ──────────────────────────────────────────────────────────────
+
+/** Lee la frase actual con la voz sintética, para que la escuches antes de repetirla. */
+async function escucharFrase(ws) {
+  const f = fraseActual();
+  if (!f) return;
+  estado(ws, 'lectura:sonando');
+  await hablar(ws, f.texto);
+  if (S) estado(ws, 'lectura:lista');
+}
+
+/** Muestra la frase que toca y abre el micrófono para que la leas. */
+function mostrarFrase(ws) {
+  const f = fraseActual();
+  if (!f) return finalizar(ws);
+  enviar(ws, 'frase', {
+    texto: f.texto,
+    pregunta: f.lectura.pregunta,
+    ronda: f.lectura.ronda,
+    idLectura: f.lectura.id,
+    indiceFrase: S.iFrase + 1,
+    totalEnLectura: f.lectura.frases.length,
+    hechas: S.frasesHechas,
+    total: S.totalFrases,
+  });
+  estado(ws, 'lectura:lista');
+}
+
+/**
+ * Cierra una frase leída: alinea lo esperado con lo oído y devuelve la corrección.
+ *
+ * Acá sí se corrige en el momento, al revés que en modo entrevista. Son ejercicios distintos:
+ * la entrevista simula presión y por eso el feedback llega al final; la lectura construye
+ * fluidez motora, y para eso la corrección tiene que llegar mientras la frase todavía está
+ * en la boca. Se corrige por frase y no por palabra: interrumpir a media palabra rompe
+ * justamente el ritmo que se está entrenando.
+ */
+function cerrarFrase(ws) {
+  if (!S || S.estado !== 'escuchando') return;
+  pararEscucha();
+
+  const f = fraseActual();
+  if (!f) return finalizar(ws);
+
+  const oido = [...S.finales, S.parcial].filter(Boolean).join(' ').trim();
+  if (!oido) {
+    enviar(ws, 'aviso', { mensaje: 'No se escuchó nada. ¿Está tomando el micrófono correcto?' });
+    return estado(ws, 'lectura:lista');
+  }
+
+  const comp = compararFrase(f.texto, S.palabras);
+  comp.frase = f.texto;
+  comp.idLectura = f.lectura.id;
+  S.comparaciones.push(comp);
+  S.frasesHechas += 1;
+
+  enviar(ws, 'correccion', {
+    esperado: f.texto,
+    oido,
+    items: comp.items,
+    resumen: comp.resumen,
+    problemas: comp.problemas,
+    hechas: S.frasesHechas,
+    total: S.totalFrases,
+  });
+  sesion.log('lectura', { frase: f.texto, oido, resumen: comp.resumen, problemas: comp.problemas });
+
+  estado(ws, 'lectura:corregido');
+}
+
+/** Avanza a la frase siguiente, saltando de respuesta cuando se acaba la actual. */
+function avanzarFrase(ws) {
+  if (!S) return;
+  const lec = S.lecturas[S.iLectura];
+  if (!lec) return finalizar(ws);
+  S.iFrase += 1;
+  if (S.iFrase >= lec.frases.length) { S.iLectura += 1; S.iFrase = 0; }
+  if (!S.lecturas[S.iLectura]) return finalizar(ws);
+  mostrarFrase(ws);
+}
+
 /** Cierra la respuesta: mide, evalúa y encadena el próximo turno. */
 async function cerrarRespuesta(ws) {
   if (!S || S.estado !== 'escuchando') return;
+  if (S.modo === 'lectura') return cerrarFrase(ws);
   pararEscucha();
 
   const texto = [...S.finales, S.parcial].filter(Boolean).join(' ').trim();
@@ -268,6 +400,24 @@ function finalizar(ws) {
   pararEscucha();
   if (S.reproductor) { try { S.reproductor.kill(); } catch { /* noop */ } }
 
+  if (S.modo === 'lectura') {
+    const palabras = palabrasATrabajar(S.comparaciones);
+    const evaluables = S.comparaciones.reduce((a, c) => a + c.resumen.evaluables, 0);
+    const limpias = S.comparaciones.reduce((a, c) => a + c.resumen.ok, 0);
+    const resumenLectura = {
+      frases: S.comparaciones.length,
+      palabrasEvaluadas: evaluables,
+      precision: evaluables ? Number((limpias / evaluables).toFixed(3)) : null,
+      palabras: palabras.slice(0, 20),
+    };
+    enviar(ws, 'resumenLectura', { resumen: resumenLectura, archivo: sesion.currentPath() });
+    sesion.log('resumenLectura', { resumen: resumenLectura, iniciada: S.iniciada, terminada: new Date().toISOString() });
+    sesion.close();
+    estado(ws, 'idle');
+    S = null;
+    return;
+  }
+
   const resumen = promediar(S.metricas);
   enviar(ws, 'resumen', { resumen, archivo: sesion.currentPath() });
   sesion.log('resumen', { resumen, iniciada: S.iniciada, terminada: new Date().toISOString() });
@@ -302,6 +452,43 @@ wss.on('connection', (ws) => {
           await turnoEntrevistador(ws);
           break;
         }
+
+        case 'iniciarLectura': {
+          if (S) finalizar(ws);
+          S = nuevaSesionLectura({
+            ids: Array.isArray(msg.ids) && msg.ids.length ? msg.ids : null,
+            ronda: msg.ronda || null,
+          });
+          if (!S.lecturas.length) {
+            enviar(ws, 'error', { mensaje: 'No hay lecturas para esa selección.' });
+            S = null;
+            break;
+          }
+          sesion.setSessionMeta({
+            modo: 'lectura',
+            lecturas: S.lecturas.map((l) => l.id),
+            totalFrases: S.totalFrases,
+          });
+          enviar(ws, 'lecturaIniciada', { total: S.totalFrases, lecturas: S.lecturas.length });
+          mostrarFrase(ws);
+          break;
+        }
+
+        case 'escucharFrase':    // oír la frase antes de repetirla
+          if (S?.modo === 'lectura') await escucharFrase(ws);
+          break;
+
+        case 'leerFrase':        // abrir el mic para leer la frase en pantalla
+          if (S?.modo === 'lectura' && S.estado !== 'escuchando') abrirMicrofono(ws);
+          break;
+
+        case 'reintentarFrase':  // misma frase otra vez, sin avanzar
+          if (S?.modo === 'lectura') mostrarFrase(ws);
+          break;
+
+        case 'siguienteFrase':
+          if (S?.modo === 'lectura') avanzarFrase(ws);
+          break;
 
         case 'listo':            // "terminé de responder", sin esperar el silencio
           await cerrarRespuesta(ws);
