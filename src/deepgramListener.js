@@ -161,6 +161,18 @@ class DeepgramListener extends EventEmitter {
         const payload = {
           text,
           confidence: alt.confidence ?? null,
+          // Palabra por palabra, con confianza y tiempos. Antes se descartaba y era lo único
+          // con lo que se puede dar feedback de pronunciación: la confianza de la frase
+          // completa promedia y esconde justo la palabra que te costó. Ver alignment.js.
+          words: Array.isArray(alt.words)
+            ? alt.words.map((w) => ({
+                word: w.word,
+                punctuated: w.punctuated_word ?? w.word,
+                confidence: typeof w.confidence === 'number' ? w.confidence : null,
+                start: w.start ?? null,
+                end: w.end ?? null,
+              }))
+            : [],
           isFinal,
           speechFinal: Boolean(msg.speech_final),
         };
