@@ -219,14 +219,15 @@ async function hablar(ws, texto) {
     sampleRate: SAMPLE_RATE,
     onError: (e) => enviar(ws, 'error', { mensaje: `Audio de salida: ${e.message}` }),
   });
-  S.reproductor = rep;
+  // Puede no haber sesión viva: practicar una palabra suelta después del resumen es válido.
+  if (S) S.reproductor = rep;
   try {
     await textToSpeechStream(texto, (chunk) => rep.write(chunk));
   } catch (err) {
     enviar(ws, 'error', { mensaje: `TTS: ${err.message}` });
   } finally {
     rep.end();
-    S.reproductor = null;
+    if (S) S.reproductor = null;
   }
   // Colchón para que ffmpeg drene el buffer antes de abrir el mic; sin esto el final de la
   // pregunta se cuela por el micrófono y Deepgram lo transcribe como si lo hubieras dicho tú.
@@ -570,6 +571,15 @@ wss.on('connection', (ws) => {
         case 'repetir':          // volver a escuchar la pregunta actual
           if (S?.preguntaActual) await hablar(ws, S.preguntaActual);
           break;
+
+        case 'decir': {
+          // Escuchar cómo se dice lo que falló, para repetirlo. Va por fragmento y no por
+          // palabra suelta: los errores que importan son de habla encadenada —"out to more"
+          // dicho rápido suena a "of the motor"— y una palabra aislada no entrena eso.
+          const t = String(msg.texto || '').trim().slice(0, 120);
+          if (t) await hablar(ws, t);
+          break;
+        }
 
         case 'reintentar':       // MISMA pregunta, otro intento, para comparar
           if (S && S.modo === 'entrevista' && S.estado !== 'escuchando') abrirMicrofono(ws);

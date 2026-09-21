@@ -171,6 +171,23 @@
     .apoyo::before{content:'LEE ESTO';display:block;font-family:var(--mono);font-size:10px;
                    letter-spacing:.12em;opacity:.55;margin-bottom:7px}
 
+    /* Palabras marcadas: clicables para oír cómo se dicen, en su fragmento. */
+    .lecCorr w.cambiada, .lecCorr w.omitida, .lecCorr w.dudosa{cursor:pointer}
+    .lecCorr w.cambiada:hover, .lecCorr w.omitida:hover, .lecCorr w.dudosa:hover{
+      outline:2px solid currentColor; outline-offset:1px}
+
+    .drill{margin-top:16px;padding-top:14px;border-top:1px solid rgba(128,128,128,.25)}
+    .drill h4{margin:0 0 4px;font-size:13px;font-family:var(--mono);text-transform:uppercase;
+              letter-spacing:.07em;opacity:.6}
+    .drill .pista{font-size:12.5px;opacity:.6;margin:0 0 11px}
+    .drill ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+    .drill li{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;
+              padding:9px 11px;background:rgba(128,128,128,.07);border-radius:6px}
+    .drill button{font:500 12.5px var(--sans);padding:6px 12px;white-space:nowrap}
+    .drill .frag{font-size:16px;line-height:1.4}
+    .drill .frag b{color:var(--acento)}
+    .drill .mal{font-family:var(--mono);font-size:12px;opacity:.6;display:block;margin-top:3px}
+
     /* Comparación entre intentos. El veredicto mira las palabras, no el porcentaje. */
     .cmp{margin-top:14px;padding-top:13px;border-top:1px solid rgba(128,128,128,.25)}
     .cmp .vd{font-size:17px;font-weight:600;margin:0 0 9px}
@@ -246,6 +263,7 @@
       <div class="lecCorr" id="pronCorr"></div>
       <p class="lecOido" id="pronResumen"></p>
       <div class="cmp" id="cmp" hidden></div>
+      <div class="drill" id="drill" hidden></div>
     </div>
   </section>
 
@@ -365,12 +383,72 @@
 
   /** items de alineación → HTML con cada palabra marcada. */
   function htmlPalabras(items) {
-    return (items || []).map(function (it) {
+    return (items || []).map(function (it, i) {
       var txt = it.tipo === 'agregada' ? it.oida : it.esperada;
       var extra = '';
       if (it.tipo === 'cambiada' && it.oida) extra = '<span class="oida">se oyó «' + esc(it.oida) + '»</span>';
-      return '<w class="' + it.tipo + '">' + esc(txt) + '</w>' + extra;
+      var clic = (it.tipo === 'cambiada' || it.tipo === 'omitida' || it.tipo === 'dudosa')
+        ? ' data-i="' + i + '" title="Escuchar cómo se dice"' : '';
+      return '<w class="' + it.tipo + '"' + clic + '>' + esc(txt) + '</w>' + extra;
     }).join(' ');
+  }
+
+  // Los items del último análisis, para armar fragmentos y la lista de práctica.
+  var ultimosItems = [];
+
+  /**
+   * Fragmento correcto alrededor de una palabra: dos antes y dos después.
+   * Se oye el grupo y no la palabra sola porque los errores que importan son de habla
+   * encadenada; "out" aislado no entrena lo que falló en "out to more".
+   */
+  function fragmento(i) {
+    var a = Math.max(0, i - 2), b = Math.min(ultimosItems.length, i + 3);
+    return ultimosItems.slice(a, b)
+      .filter(function (x) { return x.esperada; })
+      .map(function (x) { return x.esperada; })
+      .join(' ');
+  }
+
+  function fragmentoHtml(i) {
+    var a = Math.max(0, i - 2), b = Math.min(ultimosItems.length, i + 3);
+    return ultimosItems.slice(a, b).map(function (x, k) {
+      if (!x.esperada) return '';
+      return (a + k === i) ? '<b>' + esc(x.esperada) + '</b>' : esc(x.esperada);
+    }).filter(Boolean).join(' ');
+  }
+
+  function decir(texto) { if (texto) mandar({ tipo: 'decir', texto: texto }); }
+
+  /** Lista de práctica: lo que falló, con su fragmento y un botón para oírlo. */
+  function pintarDrill() {
+    var malas = [];
+    ultimosItems.forEach(function (it, i) {
+      if (it.tipo === 'cambiada' || it.tipo === 'omitida' || it.tipo === 'dudosa') malas.push({ it: it, i: i });
+    });
+    if (!malas.length) { $('drill').hidden = true; return; }
+
+    $('drill').innerHTML = '<h4>Practica esto</h4>' +
+      '<p class="pista">Escucha el grupo completo y repítelo en voz alta. Los errores que cuestan ' +
+      'son de habla encadenada, no de palabras sueltas.</p><ul>' +
+      malas.map(function (m) {
+        var oida = (m.it.tipo === 'cambiada' && m.it.oida)
+          ? '<span class="mal">se te oyó «' + esc(m.it.oida) + '»</span>'
+          : (m.it.tipo === 'omitida' ? '<span class="mal">te la comiste</span>' : '');
+        return '<li><button type="button" data-say="' + m.i + '">▶ Oír</button>' +
+               '<span class="frag">' + fragmentoHtml(m.i) + oida + '</span></li>';
+      }).join('') + '</ul>';
+    $('drill').hidden = false;
+
+    Array.prototype.forEach.call($('drill').querySelectorAll('button[data-say]'), function (b) {
+      b.addEventListener('click', function () { decir(fragmento(Number(b.getAttribute('data-say')))); });
+    });
+  }
+
+  /** Clic sobre una palabra marcada: oír su fragmento. */
+  function activarClicPalabras(cont) {
+    Array.prototype.forEach.call(cont.querySelectorAll('w[data-i]'), function (el) {
+      el.addEventListener('click', function () { decir(fragmento(Number(el.getAttribute('data-i')))); });
+    });
   }
 
   /** Resumen corto de una comparación: «82% limpio · 2 cambiadas». */
@@ -390,6 +468,8 @@
 
     $('lecOido').innerHTML = resumenPron(d.resumen || {}) + '<br>Se oyó: ' + esc(d.oido);
     $('lecOido').hidden = false;
+    ultimosItems = d.items || [];
+    activarClicPalabras($('lecTexto'));
   }
 
   /** Modo entrevista guiada: la pronunciación va en su propia sección. */
@@ -400,6 +480,9 @@
     $('pronResumen').innerHTML = cab;
     $('cmp').hidden = true;
     $('secPron').hidden = false;
+    ultimosItems = d.items || [];
+    activarClicPalabras($('pronCorr'));
+    pintarDrill();
   }
 
   function chips(lista, clase) {
