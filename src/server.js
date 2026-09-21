@@ -304,6 +304,10 @@ function mostrarFrase(ws) {
   if (!f) return finalizar(ws);
   enviar(ws, 'frase', {
     texto: f.texto,
+    // La respuesta entera, no solo la frase que toca: leyendo de a una se pierde de vista
+    // qué se está construyendo, y el ejercicio es fijar la respuesta completa, no recitar
+    // renglones sueltos.
+    frases: f.lectura.frases,
     pregunta: f.lectura.pregunta,
     ronda: f.lectura.ronda,
     idLectura: f.lectura.id,
