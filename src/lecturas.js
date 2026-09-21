@@ -238,9 +238,32 @@ function armarLectura({ ids = null, ronda = null } = {}) {
   return LECTURAS;
 }
 
+/**
+ * La respuesta completa de una lectura, como se diría de corrido.
+ *
+ * En modo guiado se lee entera de una vez, no frase por frase, así que la alineación
+ * necesita el texto unido. Needleman-Wunsch sobre setenta tokens es trivial; el largo no
+ * es problema acá, al revés que en lectura donde el endpointing sí obliga a cortar.
+ */
+function respuestaCompleta(lectura) {
+  return (lectura?.frases || []).join(' ');
+}
+
+/** Las lecturas servidas como preguntas de entrevista, cada una con su respuesta lista. */
+function preguntasGuiadas() {
+  return LECTURAS.map((l) => ({
+    id: l.id,
+    fase: 'guiada',
+    area: l.ronda,
+    dificil: false,
+    texto: l.pregunta,
+    apoyo: respuestaCompleta(l),
+  }));
+}
+
 /** Total de frases de un conjunto, para la barra de progreso. */
 function contarFrases(lecturas) {
   return (lecturas || []).reduce((a, l) => a + l.frases.length, 0);
 }
 
-module.exports = { LECTURAS, rondas, armarLectura, contarFrases };
+module.exports = { LECTURAS, rondas, armarLectura, contarFrases, respuestaCompleta, preguntasGuiadas };

@@ -127,6 +127,7 @@
     <button id="btnSaltar" disabled>Saltar</button>
     <button id="btnFinalizar" disabled>Terminar</button>
     <label class="check"><input type="checkbox" id="chkDificiles" checked> incluir preguntas difíciles</label>
+    <label class="check"><input type="checkbox" id="chkApoyo"> <b>con apoyo</b>: muéstrame la respuesta</label>
   </div>
 
   <div class="barra" id="barraLectura" hidden>
@@ -162,6 +163,12 @@
          border:1px solid currentColor;background:transparent;opacity:.55}
     .tab[aria-pressed=true]{opacity:1;font-weight:600}
     .modoNota{font-size:12.5px;opacity:.6;margin-left:4px}
+
+    /* El apoyo: la respuesta preparada, para leerla mientras suena la pregunta. */
+    .apoyo{margin-top:14px;padding:13px 16px;border-left:3px solid currentColor;
+           background:rgba(128,128,128,.07);font-size:19px;line-height:1.55}
+    .apoyo::before{content:'LEE ESTO';display:block;font-family:var(--mono);font-size:10px;
+                   letter-spacing:.12em;opacity:.55;margin-bottom:7px}
 
     .lecMeta{font-size:12px;opacity:.6;margin:0 0 9px;letter-spacing:.03em}
 
@@ -207,6 +214,7 @@
     <h2 class="rotulo">El entrevistador</h2>
     <div class="tarjeta">
       <p class="pregunta vacia" id="pregunta">Dale a «Empezar sesión». Vas a escuchar la pregunta por los parlantes y respondes en voz alta, en inglés.</p>
+      <div class="apoyo" id="apoyo" hidden></div>
     </div>
   </section>
 
@@ -216,6 +224,14 @@
       <div class="dicho" id="dicho">—</div>
       <div class="metricas" id="metricas" hidden></div>
       <ul class="banderas" id="banderas"></ul>
+    </div>
+  </section>
+
+  <section id="secPron" hidden>
+    <h2 class="rotulo">Cómo sonó</h2>
+    <div class="tarjeta">
+      <div class="lecCorr" id="pronCorr"></div>
+      <p class="lecOido" id="pronResumen"></p>
     </div>
   </section>
 
@@ -292,6 +308,7 @@
     $('secDicho').hidden = m !== 'entrevista';
     $('secFeedback').hidden = true;
     $('secResumen').hidden = true;
+    $('secPron').hidden = true;
     pintarEstado(estadoActual);
   }
 
@@ -331,26 +348,40 @@
     }).join('');
   }
 
-  /** Pinta la frase con cada palabra marcada según cómo salió. */
-  function pintarCorreccion(d) {
-    var html = (d.items || []).map(function (it) {
+  /** items de alineación → HTML con cada palabra marcada. */
+  function htmlPalabras(items) {
+    return (items || []).map(function (it) {
       var txt = it.tipo === 'agregada' ? it.oida : it.esperada;
       var extra = '';
       if (it.tipo === 'cambiada' && it.oida) extra = '<span class="oida">se oyó «' + esc(it.oida) + '»</span>';
       return '<w class="' + it.tipo + '">' + esc(txt) + '</w>' + extra;
     }).join(' ');
-    dibujarTexto(html);
+  }
 
-    var r = d.resumen || {};
+  /** Resumen corto de una comparación: «82% limpio · 2 cambiadas». */
+  function resumenPron(r) {
     var partes = [];
     if (r.cambiada) partes.push(r.cambiada + ' cambiada' + (r.cambiada > 1 ? 's' : ''));
     if (r.omitida) partes.push(r.omitida + ' comida' + (r.omitida > 1 ? 's' : ''));
     if (r.dudosa) partes.push(r.dudosa + ' dudosa' + (r.dudosa > 1 ? 's' : ''));
     var pct = r.precision == null ? '—' : Math.round(r.precision * 100) + '%';
-    $('lecOido').innerHTML = '<b>' + pct + ' limpio</b>' +
-      (partes.length ? ' · ' + esc(partes.join(' · ')) : ' · salió entera') +
-      '<br>Se oyó: ' + esc(d.oido);
+    return '<b>' + pct + ' limpio</b>' + (partes.length ? ' · ' + esc(partes.join(' · ')) : ' · salió entera');
+  }
+
+  /** Pinta la frase con cada palabra marcada según cómo salió (modo lectura). */
+  function pintarCorreccion(d) {
+    var html = htmlPalabras(d.items);
+    dibujarTexto(html);
+
+    $('lecOido').innerHTML = resumenPron(d.resumen || {}) + '<br>Se oyó: ' + esc(d.oido);
     $('lecOido').hidden = false;
+  }
+
+  /** Modo entrevista guiada: la pronunciación va en su propia sección. */
+  function pintarPronEntrevista(d) {
+    $('pronCorr').innerHTML = htmlPalabras(d.items);
+    $('pronResumen').innerHTML = resumenPron(d.resumen || {});
+    $('secPron').hidden = false;
   }
 
   function pintarFrase(d) {
@@ -416,6 +447,9 @@
           break;
 
         case 'pregunta':
+          if (m.apoyo) { $('apoyo').textContent = m.apoyo; $('apoyo').hidden = false; }
+          else { $('apoyo').hidden = true; }
+          $('secPron').hidden = true;
           $('pregunta').className = 'pregunta';
           $('pregunta').innerHTML = esc(m.texto) +
             (m.esSeguimiento ? '<span class="marca">repregunta</span>' : '');
@@ -461,8 +495,12 @@
           break;
 
         case 'correccion':
-          pintarCorreccion(m);
-          $('chipProgreso').textContent = m.hechas + '/' + m.total + ' frases';
+          if (modo === 'lectura') {
+            pintarCorreccion(m);
+            $('chipProgreso').textContent = m.hechas + '/' + m.total + ' frases';
+          } else {
+            pintarPronEntrevista(m);
+          }
           break;
 
         case 'resumenLectura':
@@ -556,7 +594,11 @@
   function mandar(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
   btn.iniciar.addEventListener('click', function () {
-    mandar({ tipo: 'iniciar', incluirDificiles: $('chkDificiles').checked });
+    mandar({
+      tipo: 'iniciar',
+      incluirDificiles: $('chkDificiles').checked,
+      guiada: $('chkApoyo').checked
+    });
   });
   btn.listo.addEventListener('click', function () { mandar({ tipo: 'listo' }); });
   btn.siguiente.addEventListener('click', function () { mandar({ tipo: 'siguiente' }); });

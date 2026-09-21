@@ -33,8 +33,8 @@ const { DeepgramListener } = require('./deepgramListener');
 const { textToSpeechStream, SAMPLE_RATE } = require('./cartesiaSpeaker');
 const { crearReproductor } = require('./audioPlayer');
 const { entrevistar, evaluar, MODELO } = require('./agents');
-const { armarSet, areasTecnicas } = require('./questionBank');
-const { armarLectura, rondas, contarFrases } = require('./lecturas');
+const { armarSet, areasTecnicas, barajar } = require('./questionBank');
+const { armarLectura, rondas, contarFrases, preguntasGuiadas } = require('./lecturas');
 const { compararFrase, palabrasATrabajar } = require('./alignment');
 const { medirRespuesta, promediar } = require('./metrics');
 const sesion = require('./sessionLog');
@@ -96,10 +96,25 @@ function fraseActual() {
   return { texto, lectura: lec };
 }
 
-function nuevaSesion(opts) {
+/**
+ * Sesión de entrevista. Con `guiada`, las preguntas salen del set que tiene respuesta
+ * preparada y esa respuesta se manda a pantalla para leerla.
+ *
+ * Es el escalón intermedio entre leer y improvisar: la pregunta llega por voz y sin saber
+ * cuál viene —eso es la parte de entrevista— pero hay qué decir, que es lo que evita el
+ * bloqueo. Evaluamos las dos cosas: la pronunciación contra el texto esperado, y el inglés
+ * y la entrega con el evaluador de siempre.
+ *
+ * En guiada no hay repreguntas: no existe respuesta preparada para ellas, y mandarlo a
+ * improvisar a mitad del ejercicio rompe justamente el andamio que lo hace servir.
+ */
+function nuevaSesion(opts = {}) {
+  const guiada = Boolean(opts.guiada);
   return {
     modo: 'entrevista',
-    preguntas: armarSet(opts),
+    guiada,
+    preguntas: guiada ? barajar(preguntasGuiadas()).slice(0, opts.cuantas || 6) : armarSet(opts),
+    apoyoActual: '',
     indice: 0,
     seguimientos: 0,
     historial: [],          // [{role, content}] para el entrevistador
@@ -160,16 +175,19 @@ async function turnoEntrevistador(ws, ultimaRespuesta = '') {
 
   // ¿Repreguntó sobre lo anterior o avanzó? Heurística: si el texto contiene el núcleo de la
   // pregunta planificada, la hizo. Si no, fue repregunta y la planificada sigue pendiente.
-  const avanzo = !ultimaRespuesta || pareceMismaPregunta(texto, planificada);
+  // En guiada siempre se avanza: no hay respuesta preparada para una repregunta.
+  const avanzo = S.guiada || !ultimaRespuesta || pareceMismaPregunta(texto, planificada);
   if (avanzo) { S.indice += 1; S.seguimientos = 0; } else { S.seguimientos += 1; }
 
   S.preguntaActual = texto;
+  S.apoyoActual = (avanzo && S.guiada) ? (S.preguntas[S.indice - 1]?.apoyo || '') : S.apoyoActual;
   S.historial.push({ role: 'assistant', content: texto });
   enviar(ws, 'pregunta', {
     texto,
     esSeguimiento: !avanzo,
     numero: S.indice,
     total: S.preguntas.length,
+    apoyo: S.apoyoActual || null,
   });
   sesion.log('pregunta', { texto, esSeguimiento: !avanzo });
 
@@ -397,6 +415,19 @@ async function cerrarRespuesta(ws) {
   enviar(ws, 'respuesta', { texto, metricas: m });
   sesion.log('respuesta', { pregunta: S.preguntaActual, texto, metricas: m });
 
+  // Guiada: además del juicio del modelo, la pronunciación medida contra lo que tocaba decir.
+  if (S.guiada && S.apoyoActual) {
+    const comp = compararFrase(S.apoyoActual, S.palabras);
+    enviar(ws, 'correccion', {
+      esperado: S.apoyoActual,
+      oido: texto,
+      items: comp.items,
+      resumen: comp.resumen,
+      problemas: comp.problemas,
+    });
+    sesion.log('pronunciacion', { esperado: S.apoyoActual, resumen: comp.resumen, problemas: comp.problemas });
+  }
+
   estado(ws, 'evaluando');
   let evaluacion = null;
   try {
@@ -462,6 +493,7 @@ wss.on('connection', (ws) => {
         case 'iniciar': {
           if (S) finalizar(ws);
           S = nuevaSesion({
+            guiada: Boolean(msg.guiada),
             incluirDificiles: msg.incluirDificiles !== false,
             areas: Array.isArray(msg.areas) && msg.areas.length ? msg.areas : null,
           });
