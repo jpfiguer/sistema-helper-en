@@ -230,8 +230,56 @@ function palabrasATrabajar(comparaciones) {
     .sort((a, b) => b.veces - a.veces || a.palabra.localeCompare(b.palabra));
 }
 
+/**
+ * Compara dos intentos de la misma respuesta para decir si mejoró o empeoró.
+ *
+ * Existe porque repetir sin saber si mejoraste no es práctica, es repetición. La señal que
+ * sirve no es «tuviste 10 problemas» sino «arreglaste estas tres y rompiste esta otra»:
+ * lo segundo es accionable en el intento siguiente.
+ *
+ * Trabaja sobre el conjunto de palabras problemáticas de cada intento, no sobre la
+ * precisión sola, porque el mismo porcentaje puede esconder que cambiaste unos errores
+ * por otros.
+ *
+ * @param {object} antes  resultado de compararFrase del intento previo
+ * @param {object} ahora  resultado del intento nuevo
+ */
+function compararIntentos(antes, ahora) {
+  const setDe = (c) => new Set((c?.problemas || []).map((p) => p.esperada).filter(Boolean));
+  const A = setDe(antes);
+  const B = setDe(ahora);
+
+  const arregladas = [...A].filter((w) => !B.has(w)).sort();
+  const empeoradas = [...B].filter((w) => !A.has(w)).sort();
+  const persisten = [...A].filter((w) => B.has(w)).sort();
+
+  const pa = antes?.resumen?.precision;
+  const pb = ahora?.resumen?.precision;
+  const delta = (typeof pa === 'number' && typeof pb === 'number')
+    ? Number((pb - pa).toFixed(3))
+    : null;
+
+  // El veredicto mira las palabras, no el porcentaje: cambiar unos errores por otros deja
+  // la precisión igual y no es haber mejorado.
+  let veredicto = 'igual';
+  if (arregladas.length > empeoradas.length) veredicto = 'mejor';
+  else if (empeoradas.length > arregladas.length) veredicto = 'peor';
+  else if (delta !== null && Math.abs(delta) >= 0.05) veredicto = delta > 0 ? 'mejor' : 'peor';
+
+  return {
+    veredicto,
+    delta,
+    precisionAntes: pa ?? null,
+    precisionAhora: pb ?? null,
+    arregladas,
+    empeoradas,
+    persisten,
+  };
+}
+
 module.exports = {
   compararFrase,
+  compararIntentos,
   palabrasATrabajar,
   tokenizar,
   tokenizarOidas,

@@ -177,3 +177,51 @@ test('armarLectura sin filtros devuelve todo, y contarFrases cuadra', () => {
 test('un id inexistente se ignora en vez de romper', () => {
   assert.deepEqual(armarLectura({ ids: ['no-existe'] }), []);
 });
+
+// ── comparación entre intentos ────────────────────────────────────────────────
+
+const { compararIntentos } = require('../src/alignment');
+
+test('arreglar más de lo que rompes es mejorar', () => {
+  const a = compararFrase('the threshold blocks the merge', oidas('the treshold blocs the merge'));
+  const b = compararFrase('the threshold blocks the merge', oidas('the threshold blocks the merge'));
+  const c = compararIntentos(a, b);
+  assert.equal(c.veredicto, 'mejor');
+  assert.ok(c.arregladas.length >= 1);
+  assert.equal(c.empeoradas.length, 0);
+  assert.ok(c.delta > 0);
+});
+
+test('romper lo que estaba bien es empeorar', () => {
+  const a = compararFrase('the threshold blocks the merge', oidas('the threshold blocks the merge'));
+  const b = compararFrase('the threshold blocks the merge', oidas('the treshold blocs the merge'));
+  const c = compararIntentos(a, b);
+  assert.equal(c.veredicto, 'peor');
+  assert.ok(c.empeoradas.length >= 1);
+});
+
+test('cambiar unos errores por otros NO es mejorar, aunque la precisión sea igual', () => {
+  // misma cantidad de fallos, palabras distintas: el porcentaje engaña, el veredicto no
+  const a = compararFrase('the threshold blocks the merge', oidas('the treshold blocks the merge'));
+  const b = compararFrase('the threshold blocks the merge', oidas('the threshold blocs the merge'));
+  const c = compararIntentos(a, b);
+  assert.equal(c.delta, 0);
+  assert.equal(c.veredicto, 'igual');
+  assert.deepEqual(c.arregladas, ['threshold']);
+  assert.deepEqual(c.empeoradas, ['blocks']);
+});
+
+test('lo que sigue fallando se reporta aparte', () => {
+  const a = compararFrase('the threshold blocks it', oidas('the treshold blocs it'));
+  const b = compararFrase('the threshold blocks it', oidas('the treshold blocks it'));
+  const c = compararIntentos(a, b);
+  assert.deepEqual(c.persisten, ['threshold']);
+  assert.deepEqual(c.arregladas, ['blocks']);
+});
+
+test('comparar contra un intento vacío no revienta', () => {
+  const b = compararFrase('the threshold blocks it', oidas('the threshold blocks it'));
+  const c = compararIntentos(null, b);
+  assert.equal(c.precisionAntes, null);
+  assert.equal(c.delta, null);
+});

@@ -35,7 +35,7 @@ const { crearReproductor } = require('./audioPlayer');
 const { entrevistar, evaluar, MODELO } = require('./agents');
 const { armarSet, areasTecnicas, barajar } = require('./questionBank');
 const { armarLectura, rondas, contarFrases, preguntasGuiadas } = require('./lecturas');
-const { compararFrase, palabrasATrabajar } = require('./alignment');
+const { compararFrase, palabrasATrabajar, compararIntentos } = require('./alignment');
 const { medirRespuesta, promediar } = require('./metrics');
 const sesion = require('./sessionLog');
 
@@ -115,6 +115,7 @@ function nuevaSesion(opts = {}) {
     guiada,
     preguntas: guiada ? barajar(preguntasGuiadas()).slice(0, opts.cuantas || 6) : armarSet(opts),
     apoyoActual: '',
+    intentos: [],          // intentos de la pregunta actual, para comparar
     indice: 0,
     seguimientos: 0,
     historial: [],          // [{role, content}] para el entrevistador
@@ -180,6 +181,7 @@ async function turnoEntrevistador(ws, ultimaRespuesta = '') {
   if (avanzo) { S.indice += 1; S.seguimientos = 0; } else { S.seguimientos += 1; }
 
   S.preguntaActual = texto;
+  if (avanzo) S.intentos = [];
   S.apoyoActual = (avanzo && S.guiada) ? (S.preguntas[S.indice - 1]?.apoyo || '') : S.apoyoActual;
   S.historial.push({ role: 'assistant', content: texto });
   enviar(ws, 'pregunta', {
@@ -418,14 +420,24 @@ async function cerrarRespuesta(ws) {
   // Guiada: además del juicio del modelo, la pronunciación medida contra lo que tocaba decir.
   if (S.guiada && S.apoyoActual) {
     const comp = compararFrase(S.apoyoActual, S.palabras);
+    const previo = S.intentos[S.intentos.length - 1] || null;
+    S.intentos.push(comp);
     enviar(ws, 'correccion', {
+      intento: S.intentos.length,
       esperado: S.apoyoActual,
       oido: texto,
       items: comp.items,
       resumen: comp.resumen,
       problemas: comp.problemas,
     });
-    sesion.log('pronunciacion', { esperado: S.apoyoActual, resumen: comp.resumen, problemas: comp.problemas });
+    sesion.log('pronunciacion', { intento: S.intentos.length, esperado: S.apoyoActual, resumen: comp.resumen, problemas: comp.problemas });
+
+    // Repetir sin saber si mejoraste es repetición, no práctica.
+    if (previo) {
+      const cmp = compararIntentos(previo, comp);
+      enviar(ws, 'comparacion', { ...cmp, intento: S.intentos.length });
+      sesion.log('comparacion', cmp);
+    }
   }
 
   estado(ws, 'evaluando');
@@ -557,6 +569,10 @@ wss.on('connection', (ws) => {
 
         case 'repetir':          // volver a escuchar la pregunta actual
           if (S?.preguntaActual) await hablar(ws, S.preguntaActual);
+          break;
+
+        case 'reintentar':       // MISMA pregunta, otro intento, para comparar
+          if (S && S.modo === 'entrevista' && S.estado !== 'escuchando') abrirMicrofono(ws);
           break;
 
         case 'saltar':

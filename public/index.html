@@ -123,7 +123,8 @@
     <button class="primario" id="btnIniciar">Empezar sesión</button>
     <button id="btnListo" disabled>✓ Listo, evalúa</button>
     <button id="btnSiguiente" disabled>Siguiente pregunta</button>
-    <button id="btnRepetir" disabled>Repetir</button>
+    <button id="btnRepetir" disabled>Repetir pregunta</button>
+    <button id="btnReintentar" disabled>↻ Intentar de nuevo</button>
     <button id="btnSaltar" disabled>Saltar</button>
     <button id="btnFinalizar" disabled>Terminar sesión</button>
     <label class="check"><input type="checkbox" id="chkDificiles" checked> incluir preguntas difíciles</label>
@@ -169,6 +170,18 @@
            background:rgba(128,128,128,.07);font-size:19px;line-height:1.55}
     .apoyo::before{content:'LEE ESTO';display:block;font-family:var(--mono);font-size:10px;
                    letter-spacing:.12em;opacity:.55;margin-bottom:7px}
+
+    /* Comparación entre intentos. El veredicto mira las palabras, no el porcentaje. */
+    .cmp{margin-top:14px;padding-top:13px;border-top:1px solid rgba(128,128,128,.25)}
+    .cmp .vd{font-size:17px;font-weight:600;margin:0 0 9px}
+    .cmp .vd.mejor{color:#3FA37F}
+    .cmp .vd.peor{color:#C86A4E}
+    .cmp .fila{font-size:14px;margin:0 0 6px;line-height:1.5}
+    .cmp .fila b{font-weight:600}
+    .cmp .pal{font-family:var(--mono);font-size:13px;padding:1px 6px;margin-right:4px;
+              border-radius:3px;background:rgba(128,128,128,.14)}
+    .cmp .pal.ok{color:#3FA37F}
+    .cmp .pal.mal{color:#C86A4E}
 
     .lecMeta{font-size:12px;opacity:.6;margin:0 0 9px;letter-spacing:.03em}
 
@@ -232,6 +245,7 @@
     <div class="tarjeta">
       <div class="lecCorr" id="pronCorr"></div>
       <p class="lecOido" id="pronResumen"></p>
+      <div class="cmp" id="cmp" hidden></div>
     </div>
   </section>
 
@@ -323,6 +337,7 @@
     btn.siguiente.disabled = !(e === 'esperando');
     btn.repetir.disabled  = !(e === 'escuchando' || e === 'esperando');
     btn.saltar.disabled   = (e === 'idle' || e === 'preguntando');
+    $('btnReintentar').disabled = !(e === 'esperando' && modo === 'entrevista');
     btn.finalizar.disabled = (e === 'idle');
 
     var enLec = e.indexOf('lectura:') === 0;
@@ -380,8 +395,32 @@
   /** Modo entrevista guiada: la pronunciación va en su propia sección. */
   function pintarPronEntrevista(d) {
     $('pronCorr').innerHTML = htmlPalabras(d.items);
-    $('pronResumen').innerHTML = resumenPron(d.resumen || {});
+    var cab = resumenPron(d.resumen || {});
+    if (d.intento > 1) cab = '<b>Intento ' + d.intento + '</b> · ' + cab;
+    $('pronResumen').innerHTML = cab;
+    $('cmp').hidden = true;
     $('secPron').hidden = false;
+  }
+
+  function chips(lista, clase) {
+    return lista.map(function (w) { return '<span class="pal ' + clase + '">' + esc(w) + '</span>'; }).join('');
+  }
+
+  /** Comparación contra el intento anterior de la MISMA respuesta. */
+  function pintarComparacion(c) {
+    var titulo = { mejor: '↑ Mejoraste', peor: '↓ Empeoraste', igual: '= Igual' }[c.veredicto] || '';
+    var pa = c.precisionAntes == null ? '—' : Math.round(c.precisionAntes * 100) + '%';
+    var pb = c.precisionAhora == null ? '—' : Math.round(c.precisionAhora * 100) + '%';
+    var h = '<p class="vd ' + c.veredicto + '">' + esc(titulo) + ' &nbsp;<span style="opacity:.7;font-weight:400;font-size:14px">'
+          + pa + ' → ' + pb + '</span></p>';
+    if (c.arregladas.length) h += '<p class="fila"><b>Arreglaste:</b> ' + chips(c.arregladas, 'ok') + '</p>';
+    if (c.empeoradas.length) h += '<p class="fila"><b>Rompiste:</b> ' + chips(c.empeoradas, 'mal') + '</p>';
+    if (c.persisten.length) h += '<p class="fila"><b>Siguen costando:</b> ' + chips(c.persisten, 'mal') + '</p>';
+    if (!c.arregladas.length && !c.empeoradas.length && !c.persisten.length) {
+      h += '<p class="fila">Las dos veces salió limpia.</p>';
+    }
+    $('cmp').innerHTML = h;
+    $('cmp').hidden = false;
   }
 
   function pintarFrase(d) {
@@ -503,6 +542,10 @@
           }
           break;
 
+        case 'comparacion':
+          pintarComparacion(m);
+          break;
+
         case 'resumenLectura':
           pintarResumenLectura(m.resumen, m.archivo);
           break;
@@ -603,6 +646,7 @@
   btn.listo.addEventListener('click', function () { mandar({ tipo: 'listo' }); });
   btn.siguiente.addEventListener('click', function () { mandar({ tipo: 'siguiente' }); });
   btn.repetir.addEventListener('click', function () { mandar({ tipo: 'repetir' }); });
+  $('btnReintentar').addEventListener('click', function () { mandar({ tipo: 'reintentar' }); });
   btn.saltar.addEventListener('click', function () { mandar({ tipo: 'saltar' }); });
   btn.finalizar.addEventListener('click', function () { mandar({ tipo: 'finalizar' }); });
 
