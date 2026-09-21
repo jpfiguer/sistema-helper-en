@@ -227,7 +227,11 @@ function abrirMicrofono(ws) {
   const dg = new DeepgramListener(process.env.DEEPGRAM_API_KEY);
   S.dg = dg;
 
+  // Misma guarda que en la captura: un transcript puede llegar después de cerrada la sesión.
+  const miaDg = S;
+
   dg.on('interim', ({ text }) => {
+    if (S !== miaDg) return;
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.parcial = text;
     enviar(ws, 'parcial', { texto: text });
@@ -235,6 +239,7 @@ function abrirMicrofono(ws) {
   });
 
   dg.on('final', ({ text, words }) => {
+    if (S !== miaDg) return;
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.finales.push(text);
     // Palabra por palabra con su confianza: es lo único que permite señalar cuál
@@ -245,15 +250,28 @@ function abrirMicrofono(ws) {
     rearmarSilencio(ws);
   });
 
-  dg.on('error', (e) => enviar(ws, 'error', { mensaje: `STT: ${e.message}` }));
+  dg.on('error', (e) => { if (S === miaDg) enviar(ws, 'error', { mensaje: `STT: ${e.message}` }); });
   dg.connect();
 
+  // ffmpeg no se apaga al instante: después de pararlo siguen llegando los chunks que ya
+  // estaban en vuelo. Si mientras tanto la sesión terminó, S es null y el proceso entero se
+  // caía con "Cannot read properties of null". Comparar contra la sesión que abrió este
+  // micrófono descarta además el audio de una sesión anterior que todavía no murió.
+  const mia = S;
   startCapture({
-    onChunk: (chunk) => { S.bytes += chunk.length; dg.sendAudio(chunk); },
-    onError: (e) => enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }),
+    onChunk: (chunk) => {
+      if (S !== mia) return;
+      S.bytes += chunk.length;
+      dg.sendAudio(chunk);
+    },
+    onError: (e) => { if (S === mia) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); },
   })
-    .then((stop) => { S.pararCaptura = stop; })
-    .catch((e) => enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }));
+    .then((stop) => {
+      // La sesión pudo terminar mientras el micrófono todavía estaba arrancando.
+      if (S !== mia) { try { stop(); } catch { /* noop */ } return; }
+      S.pararCaptura = stop;
+    })
+    .catch((e) => { if (S === mia) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); });
 }
 
 /** Reinicia el contador de silencio. Cuando expira, la respuesta se da por terminada. */
