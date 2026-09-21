@@ -568,7 +568,11 @@ wss.on('connection', (ws) => {
           break;
 
         case 'finalizar':
-          finalizar(ws);
+          // Si hay una respuesta en el aire, cerrarla primero: terminar la sesión no puede
+          // significar tirar a la basura lo que acaba de decir. Pasó de verdad — leyó una
+          // respuesta entera y el resumen salió "sin respuestas registradas".
+          if (S && S.estado === 'escuchando') await cerrarRespuesta(ws);
+          if (S) finalizar(ws);
           break;
 
         default:
