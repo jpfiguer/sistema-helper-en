@@ -9,3 +9,6 @@ logs/
 # Sesiones de práctica: contienen el transcript literal de tu voz.
 sesiones/
 !sesiones/.gitkeep
+
+# audio de TTS cacheado: se regenera solo
+cache/

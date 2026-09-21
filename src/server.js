@@ -32,6 +32,12 @@ const { startCapture } = require('./audioCapture');
 const { DeepgramListener } = require('./deepgramListener');
 const { textToSpeechStream, SAMPLE_RATE } = require('./cartesiaSpeaker');
 const { crearReproductor } = require('./audioPlayer');
+const ttsCache = require('./ttsCache');
+const { sayStream, disponible: sayDisponible } = require('./saySpeaker');
+
+// Proveedor de voz. `say` es el respaldo gratis de macOS, para cuando se acaban los
+// créditos: peor calidad, pero mejor que no poder practicar. Ver saySpeaker.js.
+const USAR_SAY = (process.env.TTS_PROVIDER || '').toLowerCase() === 'say' && sayDisponible();
 const { entrevistar, evaluar, MODELO } = require('./agents');
 const { armarSet, areasTecnicas, barajar } = require('./questionBank');
 const { armarLectura, rondas, contarFrases, preguntasGuiadas } = require('./lecturas');
@@ -225,7 +231,15 @@ async function hablar(ws, texto) {
   // Puede no haber sesión viva: practicar una palabra suelta después del resumen es válido.
   if (S) S.reproductor = rep;
   try {
-    await textToSpeechStream(texto, (chunk) => rep.write(chunk));
+    // El mismo texto suena igual siempre. Las frases de lectura, los fragmentos de «▶ Oír»
+    // y repetir una pregunta salen del disco: ahorra créditos y, sobre todo, suena al
+    // instante — practicar una palabra son diez repeticiones y esperar la red las rompe.
+    if (!ttsCache.servir(texto, (chunk) => rep.write(chunk))) {
+      const trozos = [];
+      const sintetizar = USAR_SAY ? sayStream : textToSpeechStream;
+      await sintetizar(texto, (chunk) => { trozos.push(chunk); rep.write(chunk); });
+      ttsCache.guardar(texto, trozos);
+    }
   } catch (err) {
     enviar(ws, 'error', { mensaje: `TTS: ${err.message}` });
   } finally {
@@ -662,6 +676,8 @@ if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`\n  sistema-helper-en  ·  http://localhost:${PORT}\n`);
     console.log(`  modelo: ${MODELO}   ·   fin por silencio: ${SILENCIO_FIN_MS} ms`);
+    const cache = ttsCache.estado();
+    console.log(`  voz: ${USAR_SAY ? 'say (macOS, gratis)' : 'Cartesia'}   ·   caché: ${cache.archivos} clips, ${cache.mb} MB`);
     console.log('  Ctrl+C para salir\n');
   });
   process.on('SIGINT', apagar);
