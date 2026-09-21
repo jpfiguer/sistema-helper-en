@@ -104,7 +104,7 @@ async function chequearGroq() {
   const key = process.env.GROQ_API_KEY;
   if (!key) { mal('Groq', 'Falta GROQ_API_KEY en .env'); return; }
 
-  const modelo = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const modelo = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   try {
     const Groq = require('groq-sdk');
     const Cliente = Groq.default || Groq.Groq || Groq;

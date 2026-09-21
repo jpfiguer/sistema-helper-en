@@ -23,7 +23,10 @@ const { promptEvaluador, mensajeDeEvaluacion } = require('./prompts/evaluator');
 // groq-sdk exporta la clase como default (interop CommonJS: require() puede dar el namespace).
 const GroqClient = Groq.default || Groq.Groq || Groq;
 
-const MODELO = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+// Groq rota su catálogo y retira modelos sin aviso: llama-3.3-70b-versatile, que era el
+// default original, empezó a devolver 404 en septiembre de 2026. Si esto vuelve a fallar,
+// `npm run check` lo dice con el error exacto y la lista viva está en /v1/models.
+const MODELO = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const MODELO_EVAL = process.env.GROQ_MODEL_EVAL || MODELO;
 const MAX_TURNOS_HISTORIAL = 8;
 
