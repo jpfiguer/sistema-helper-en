@@ -17,7 +17,7 @@
 
 require('dotenv').config();
 
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const WebSocket = require('ws');
 const { listDevices } = require('../src/audioCapture');
 
@@ -49,6 +49,38 @@ function chequearFfmpeg() {
   });
 }
 
+/** Debajo de esto, lo que llega es silencio digital y no ruido de sala. */
+const UMBRAL_SILENCIO = 60;
+
+/**
+ * Graba un segundo del dispositivo y devuelve el pico. null si ffmpeg no pudo grabar.
+ * Un micrófono vivo en una sala callada ya da bastante más que el umbral; un stream
+ * denegado por el sistema da cero.
+ */
+function medirNivel(indice) {
+  return new Promise((resolve) => {
+    const ff = spawn('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error',
+      '-f', 'avfoundation', '-i', `:${indice}`,
+      '-t', '1', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1',
+    ]);
+    const trozos = [];
+    ff.stdout.on('data', (c) => trozos.push(c));
+    ff.on('error', () => resolve(null));
+    ff.on('close', () => {
+      const buf = Buffer.concat(trozos);
+      if (buf.length < 2) return resolve(null);
+      let pico = 0;
+      for (let i = 0; i + 1 < buf.length; i += 2) {
+        const v = Math.abs(buf.readInt16LE(i));
+        if (v > pico) pico = v;
+      }
+      resolve({ pico, muestras: buf.length / 2 });
+    });
+    setTimeout(() => { try { ff.kill('SIGKILL'); } catch { /* noop */ } }, 6000).unref();
+  });
+}
+
 async function chequearMicrofono() {
   let devices = [];
   try { devices = await listDevices(); } catch { /* cae abajo */ }
@@ -67,7 +99,23 @@ async function chequearMicrofono() {
     return;
   }
 
-  bien('micrófono', `[${elegido.index}] ${elegido.name}`);
+  // Ver el dispositivo no es lo mismo que recibir audio. Cuando macOS deniega el permiso de
+  // micrófono NO devuelve un error: entrega un stream de ceros, así que ffmpeg abre bien y
+  // graba silencio digital. Este chequeo daba verde mientras no llegaba absolutamente nada.
+  const nivel = await medirNivel(elegido.index);
+  if (nivel === null) {
+    mal('micrófono', `[${elegido.index}] ${elegido.name} — no se pudo grabar de prueba`);
+    return;
+  }
+  if (nivel.pico < UMBRAL_SILENCIO) {
+    mal('micrófono',
+      `[${elegido.index}] ${elegido.name} abre pero llega SILENCIO (pico ${nivel.pico}/32768). `
+      + 'Casi siempre es permiso denegado: macOS entrega ceros en vez de dar error. '
+      + 'Ajustes > Privacidad y seguridad > Micrófono, habilita la app desde la que corres esto, '
+      + 'y reiníciala por completo — el permiso no se toma en caliente.');
+    return;
+  }
+  bien('micrófono', `[${elegido.index}] ${elegido.name} · señal ok (pico ${nivel.pico})`);
   console.log(`      ${GRIS}otros: ${devices.filter((d) => d !== elegido).map((d) => d.name).join(', ') || '(ninguno)'}${FIN}`);
 
   if (/blackhole|loopback|soundflower|vb-?cable/i.test(elegido.name)) {
