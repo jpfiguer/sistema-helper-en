@@ -43,6 +43,9 @@ const PORT = Number(process.env.PORT) || 3002;
 // Silencio tras tu última palabra para dar la respuesta por terminada. 3 s: abajo de eso una
 // pausa para pensar cortaba la respuesta; arriba, la sesión se siente lenta.
 const SILENCIO_FIN_MS = Number(process.env.SILENCIO_FIN_MS ?? 3000);
+// Leyendo un texto preparado las pausas son más largas que improvisando: se respira entre
+// frases y se busca el renglón siguiente. Con 3 s la respuesta se cortaba por la mitad.
+const SILENCIO_FIN_GUIADO_MS = Number(process.env.SILENCIO_FIN_GUIADO_MS ?? 5000);
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -244,6 +247,7 @@ function abrirMicrofono(ws) {
   S.parcial = '';
   S.tsAbrioMic = Date.now();
   S.tsPrimeraPalabra = null;
+  S.prorrogas = 0;
 
   const dg = new DeepgramListener(process.env.DEEPGRAM_API_KEY);
   S.dg = dg;
@@ -295,10 +299,38 @@ function abrirMicrofono(ws) {
     .catch((e) => { if (S === mia) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); });
 }
 
-/** Reinicia el contador de silencio. Cuando expira, la respuesta se da por terminada. */
+/** Cuántas palabras del texto esperado se llevan dichas, de 0 a 1. null si no hay esperado. */
+function cobertura() {
+  const esperado = S?.modo === 'lectura' ? fraseActual()?.texto : S?.apoyoActual;
+  if (!esperado) return null;
+  const nEsperadas = esperado.trim().split(/\s+/).filter(Boolean).length;
+  if (!nEsperadas) return null;
+  const dichas = [...S.finales, S.parcial].filter(Boolean).join(' ').trim().split(/\s+/).filter(Boolean).length;
+  return dichas / nEsperadas;
+}
+
+/**
+ * Reinicia el contador de silencio. Cuando expira, la respuesta se da por terminada.
+ *
+ * Dos ajustes sobre el temporizador simple, los dos por el mismo motivo: leyendo un texto
+ * preparado una pausa NO significa que terminaste.
+ *   1. El umbral es más largo cuando hay texto esperado (respiras entre frases).
+ *   2. Si llevas dicho menos del 60% de lo esperado, se te da una ventana más en vez de
+ *      cerrar. Con un tope, para que un micrófono mudo no deje la sesión colgada.
+ */
 function rearmarSilencio(ws) {
   clearTimeout(S.timerSilencio);
-  S.timerSilencio = setTimeout(() => cerrarRespuesta(ws), SILENCIO_FIN_MS);
+  const hayEsperado = S.modo === 'lectura' || (S.guiada && S.apoyoActual);
+  const espera = hayEsperado ? SILENCIO_FIN_GUIADO_MS : SILENCIO_FIN_MS;
+  S.timerSilencio = setTimeout(() => {
+    const cob = cobertura();
+    if (cob !== null && cob < 0.6 && (S.prorrogas || 0) < 2) {
+      S.prorrogas = (S.prorrogas || 0) + 1;
+      enviar(ws, 'aviso', { mensaje: `Te falta texto por leer — te doy ${Math.round(espera / 1000)} s más.` });
+      return rearmarSilencio(ws);
+    }
+    cerrarRespuesta(ws);
+  }, espera);
 }
 
 function pararEscucha() {
@@ -582,7 +614,13 @@ wss.on('connection', (ws) => {
         }
 
         case 'reintentar':       // MISMA pregunta, otro intento, para comparar
-          if (S && S.modo === 'entrevista' && S.estado !== 'escuchando') abrirMicrofono(ws);
+          // Vuelve a decir la pregunta antes de abrir el micrófono: sin ese aviso auditivo
+          // la grabación arrancaba en silencio y no había forma de saber que ya estaba.
+          if (S && S.modo === 'entrevista' && S.estado !== 'escuchando') {
+            estado(ws, 'preguntando');
+            if (S.preguntaActual) await hablar(ws, S.preguntaActual);
+            if (S) abrirMicrofono(ws);
+          }
           break;
 
         case 'saltar':
