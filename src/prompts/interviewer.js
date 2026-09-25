@@ -17,6 +17,9 @@
 const ROLES_OBJETIVO = process.env.ROLES_OBJETIVO
   || 'Senior Data Engineer, AI Engineer, Data Architect';
 
+/** Repreguntas sobre un mismo tema antes de pedirle al modelo que pase a la siguiente. */
+const MAX_SEGUIMIENTOS = 2;
+
 function promptEntrevistador() {
   return `You are a senior engineering hiring manager conducting a technical interview in English.
 The candidate is applying for roles like: ${ROLES_OBJETIVO}.
@@ -57,7 +60,7 @@ ${preguntaPlanificada}
 """`;
   }
 
-  const puedeSeguir = seguimientosUsados < 2;
+  const puedeSeguir = seguimientosUsados < MAX_SEGUIMIENTOS;
 
   return `The candidate just answered:
 """
@@ -78,4 +81,4 @@ ${preguntaPlanificada}
 """`}`;
 }
 
-module.exports = { promptEntrevistador, mensajeDeTurno, ROLES_OBJETIVO };
+module.exports = { promptEntrevistador, mensajeDeTurno, ROLES_OBJETIVO, MAX_SEGUIMIENTOS };

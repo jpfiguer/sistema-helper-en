@@ -40,6 +40,7 @@ const { sayStream, disponible: sayDisponible } = require('./saySpeaker');
 // créditos: peor calidad, pero mejor que no poder practicar. Ver saySpeaker.js.
 const USAR_SAY = (process.env.TTS_PROVIDER || '').toLowerCase() === 'say' && sayDisponible();
 const { entrevistar, evaluar, MODELO } = require('./agents');
+const { MAX_SEGUIMIENTOS } = require('./prompts/interviewer');
 const { armarSet, areasTecnicas, barajar } = require('./questionBank');
 const { armarLectura, rondas, contarFrases, preguntasGuiadas } = require('./lecturas');
 const { compararFrase, palabrasATrabajar, compararIntentos } = require('./alignment');
@@ -190,7 +191,9 @@ async function turnoEntrevistador(ws, ultimaRespuesta = '') {
     texto = await entrevistar({
       preguntaPlanificada: planificada,
       ultimaRespuesta,
-      seguimientosUsados: S.seguimientos,
+      // En guiada no hay repreguntas: con el tope marcado como usado, el mensaje de turno le
+      // pide al modelo pasar directo a la pregunta que tiene la respuesta en pantalla.
+      seguimientosUsados: S.guiada ? MAX_SEGUIMIENTOS : S.seguimientos,
       historial: S.historial,
     });
   } catch (err) {
@@ -606,9 +609,12 @@ wss.on('connection', (ws) => {
             areas: Array.isArray(msg.areas) && msg.areas.length ? msg.areas : null,
           });
           sesion.setSessionMeta({
+            modo: 'entrevista',
+            // Con apoyo la respuesta se lee en pantalla: el reporte la separa de las improvisadas.
+            guiada: S.guiada,
             modelo: MODELO,
             preguntas: S.preguntas.map((p) => p.id),
-            silencioFinMs: SILENCIO_FIN_MS,
+            silencioFinMs: S.guiada ? SILENCIO_FIN_GUIADO_MS : SILENCIO_FIN_MS,
           });
           enviar(ws, 'sesionIniciada', { total: S.preguntas.length });
           await turnoEntrevistador(ws);

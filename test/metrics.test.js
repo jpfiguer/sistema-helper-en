@@ -19,6 +19,7 @@ const { elegirSalida, esLoopback } = require('../src/audioPlayer');
 const { pareceMismaPregunta } = require('../src/server');
 const { armarSet, PREGUNTAS } = require('../src/questionBank');
 const { parsearEvaluacion, limpiarParaVoz } = require('../src/agents');
+const { mensajeDeTurno, MAX_SEGUIMIENTOS } = require('../src/prompts/interviewer');
 
 // ── métricas ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,13 @@ test('una repregunta no se confunde con la pregunta planificada', () => {
   const planificada = 'How do you decide between batch and streaming for a given ingestion problem?';
   const repregunta = 'You mentioned Kafka there — what was the alternative you ruled out, and why?';
   assert.equal(pareceMismaPregunta(repregunta, planificada), false);
+});
+
+test('con el tope de repreguntas usado, el mensaje de turno pide avanzar', () => {
+  // Es lo que manda el servidor en la entrevista con apoyo, donde no hay repreguntas.
+  const m = mensajeDeTurno({ preguntaPlanificada: 'Next?', ultimaRespuesta: 'An answer.', seguimientosUsados: MAX_SEGUIMIENTOS });
+  assert.match(m, /move on to the next planned question/);
+  assert.doesNotMatch(m, /ask ONE follow-up/);
 });
 
 test('limpiarParaVoz saca el prefijo de rol y el markdown', () => {
