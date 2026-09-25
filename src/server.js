@@ -15,8 +15,9 @@
  * las métricas medirían una conversación en vez de tu habla. Es el bug que define la forma de
  * todo este archivo.
  *
- * Es una herramienta local de un solo usuario: hay UNA sesión viva por proceso. No hay auth ni
- * multi-tenancy a propósito; si esto escuchara en una interfaz pública haría falta ambas.
+ * Es una herramienta local de un solo usuario: hay UNA sesión viva por proceso y no hay login.
+ * Por eso escucha solo en 127.0.0.1 y el WebSocket acepta únicamente la página que sirve este
+ * mismo proceso.
  */
 
 'use strict';
@@ -46,6 +47,8 @@ const { medirRespuesta, promediar } = require('./metrics');
 const sesion = require('./sessionLog');
 
 const PORT = Number(process.env.PORT) || 3002;
+// Solo loopback: la app controla tu micrófono y no tiene por qué verse desde la red local.
+const HOST = '127.0.0.1';
 // Silencio tras tu última palabra para dar la respuesta por terminada. 3 s: abajo de eso una
 // pausa para pensar cortaba la respuesta; arriba, la sesión se siente lenta.
 const SILENCIO_FIN_MS = Number(process.env.SILENCIO_FIN_MS ?? 3000);
@@ -59,7 +62,20 @@ app.get('/api/areas', (_req, res) => res.json({ areas: areasTecnicas() }));
 app.get('/api/rondas', (_req, res) => res.json({ rondas: rondas() }));
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// El navegador deja que cualquier página abra un WebSocket a localhost. Sin revisar el Origin,
+// un sitio abierto en otra pestaña podría iniciar una sesión y recibir en vivo el transcript de
+// tu micrófono.
+const wss = new WebSocketServer({
+  server,
+  verifyClient: ({ origin }, responder) => responder(origenPermitido(origin), 403),
+});
+
+/** true si `origen` es la página que sirve este mismo proceso. */
+function origenPermitido(origen, puerto = server.address()?.port) {
+  if (!origen || !puerto) return false;
+  return origen === `http://localhost:${puerto}` || origen === `http://127.0.0.1:${puerto}`;
+}
 
 /** Estado de la única sesión viva. `null` cuando no hay ninguna. */
 let S = null;
@@ -670,10 +686,15 @@ function apagar() {
   setTimeout(() => process.exit(0), 1500).unref();
 }
 
-// Solo escucha cuando se ejecuta directo. Importado (los tests importan `pareceMismaPregunta`)
-// no abre puerto ni registra handlers de señal: un `require` no debe levantar un servidor.
+/** Abre el puerto en loopback. `puerto` 0 elige uno libre (lo usan los tests). */
+function escuchar(puerto = PORT, alAbrir) {
+  return server.listen(puerto, HOST, alAbrir);
+}
+
+// Solo escucha cuando se ejecuta directo. Importado desde los tests no abre puerto ni registra
+// handlers de señal.
 if (require.main === module) {
-  server.listen(PORT, () => {
+  escuchar(PORT, () => {
     console.log(`\n  sistema-helper-en  ·  http://localhost:${PORT}\n`);
     console.log(`  modelo: ${MODELO}   ·   fin por silencio: ${SILENCIO_FIN_MS} ms`);
     const cache = ttsCache.estado();
@@ -684,4 +705,4 @@ if (require.main === module) {
   process.on('SIGTERM', apagar);
 }
 
-module.exports = { app, server, pareceMismaPregunta };
+module.exports = { app, server, escuchar, origenPermitido, pareceMismaPregunta };
