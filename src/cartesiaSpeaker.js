@@ -17,8 +17,11 @@ const WebSocket = require('ws');
 
 const CARTESIA_WS = 'wss://api.cartesia.ai/tts/websocket';
 const VERSION = process.env.CARTESIA_VERSION || '2024-11-13';
-// Sample rate del PCM que pedimos. 44100 da mejor calidad que 24000 y el device resamplea
-// solo. OJO: el cache de fillers guarda PCM crudo, así que su clave incluye este valor.
+const MODELO = process.env.CARTESIA_MODEL || 'sonic-3';
+const IDIOMA = process.env.CARTESIA_LANGUAGE || 'en';
+// Sample rate del PCM que se pide. El reproductor y la voz de `say` usan el mismo valor, y
+// la clave del caché de TTS lo incluye: un clip guardado a otra frecuencia sonaría a otra
+// velocidad.
 const SAMPLE_RATE = Number(process.env.CARTESIA_SAMPLE_RATE ?? 24000);
 
 /**
@@ -88,10 +91,10 @@ async function textToSpeechStream(text, onChunk, { signal } = {}) {
     ws.on('open', () => {
       if (signal?.aborted) return finish(resolve, { interrupted: true, bytes, chunks });
       ws.send(JSON.stringify({
-        model_id: process.env.CARTESIA_MODEL || 'sonic-3',
+        model_id: MODELO,
         transcript: text,
         voice: { mode: 'id', id: voiceId },
-        language: process.env.CARTESIA_LANGUAGE || 'en',
+        language: IDIOMA,
         context_id: `practice-${t0}`,
         output_format: { container: 'raw', encoding: 'pcm_s16le', sample_rate: SAMPLE_RATE },
         generation_config: GENERATION_CONFIG,
@@ -127,4 +130,12 @@ async function textToSpeechStream(text, onChunk, { signal } = {}) {
   });
 }
 
-module.exports = { textToSpeechStream, SAMPLE_RATE };
+/** Todo lo que cambia el audio de un mismo texto. Es parte de la clave del caché de TTS. */
+function firma() {
+  return [
+    'cartesia', process.env.CARTESIA_VOICE_ID || '', MODELO, IDIOMA,
+    GENERATION_CONFIG.speed, GENERATION_CONFIG.volume, SAMPLE_RATE,
+  ].join('|');
+}
+
+module.exports = { textToSpeechStream, firma, SAMPLE_RATE };

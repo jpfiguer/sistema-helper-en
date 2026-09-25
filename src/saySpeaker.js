@@ -27,6 +27,7 @@ const path = require('path');
 const { SAMPLE_RATE } = require('./cartesiaSpeaker');
 
 const VOZ = process.env.SAY_VOICE || 'Samantha';
+const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 
 /**
  * Sintetiza con `say` y entrega el audio en trozos, misma firma que textToSpeechStream.
@@ -56,7 +57,7 @@ function sayStream(texto, onChunk) {
     say.on('close', (code) => {
       if (code !== 0) { limpiar(); return reject(new Error(`say terminó con código ${code}`)); }
 
-      const ff = spawn('ffmpeg', [
+      const ff = spawn(FFMPEG, [
         '-hide_banner', '-loglevel', 'error',
         '-i', tmp,
         '-ar', String(SAMPLE_RATE), '-ac', '1', '-f', 's16le', 'pipe:1',
@@ -83,4 +84,14 @@ function disponible() {
   return process.platform === 'darwin';
 }
 
-module.exports = { sayStream, disponible, VOZ };
+/** true si TTS_PROVIDER=say y el sistema tiene `say`. Si no, la voz es la de Cartesia. */
+function elegido() {
+  return (process.env.TTS_PROVIDER || '').toLowerCase() === 'say' && disponible();
+}
+
+/** Lo que cambia el audio de un mismo texto. Es parte de la clave del caché de TTS. */
+function firma() {
+  return ['say', VOZ, SAMPLE_RATE].join('|');
+}
+
+module.exports = { sayStream, disponible, elegido, firma, VOZ };

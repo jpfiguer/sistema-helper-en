@@ -59,7 +59,7 @@ const UMBRAL_SILENCIO = 60;
  */
 function medirNivel(indice) {
   return new Promise((resolve) => {
-    const ff = spawn('ffmpeg', [
+    const ff = spawn(FFMPEG, [
       '-hide_banner', '-loglevel', 'error',
       '-f', 'avfoundation', '-i', `:${indice}`,
       '-t', '1', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1',
@@ -187,6 +187,20 @@ async function chequearCartesia() {
   }
 }
 
+/** Con TTS_PROVIDER=say, sintetiza una frase con `say` y ffmpeg, igual que la sesión. */
+async function chequearSay() {
+  const { sayStream, VOZ } = require('../src/saySpeaker');
+  try {
+    let bytes = 0;
+    const t0 = Date.now();
+    await sayStream('Ready when you are.', (c) => { bytes += c.length; });
+    if (!bytes) { mal('voz (say)', `say con la voz ${VOZ} no produjo audio. Prueba otra con SAY_VOICE; say -v '?' lista las instaladas.`); return; }
+    bien('voz (say)', `${VOZ} · ${bytes} bytes · ${Date.now() - t0} ms · Cartesia no se usa`);
+  } catch (e) {
+    mal('voz (say)', e.message.slice(0, 200));
+  }
+}
+
 function chequearSalida() {
   const nombre = process.env.OUTPUT_DEVICE;
   if (!nombre) { bien('salida de audio', 'parlantes por defecto del sistema'); return; }
@@ -207,7 +221,8 @@ function chequearSalida() {
   chequearSalida();
   await chequearDeepgram();
   await chequearGroq();
-  await chequearCartesia();
+  if (require('../src/saySpeaker').elegido()) await chequearSay();
+  else await chequearCartesia();
 
   console.log('');
   if (fallas === 0) {

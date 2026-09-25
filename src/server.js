@@ -31,14 +31,18 @@ const { WebSocketServer } = require('ws');
 
 const { startCapture } = require('./audioCapture');
 const { DeepgramListener } = require('./deepgramListener');
-const { textToSpeechStream, SAMPLE_RATE } = require('./cartesiaSpeaker');
+const cartesia = require('./cartesiaSpeaker');
 const { crearReproductor } = require('./audioPlayer');
 const ttsCache = require('./ttsCache');
-const { sayStream, disponible: sayDisponible } = require('./saySpeaker');
+const say = require('./saySpeaker');
 
 // Proveedor de voz. `say` es el respaldo gratis de macOS, para cuando se acaban los
 // créditos: peor calidad, pero mejor que no poder practicar. Ver saySpeaker.js.
-const USAR_SAY = (process.env.TTS_PROVIDER || '').toLowerCase() === 'say' && sayDisponible();
+const USAR_SAY = say.elegido();
+const VOZ = USAR_SAY
+  ? { sintetizar: say.sayStream, firma: say.firma }
+  : { sintetizar: cartesia.textToSpeechStream, firma: cartesia.firma };
+const { SAMPLE_RATE } = cartesia;
 const { entrevistar, evaluar, MODELO } = require('./agents');
 const { MAX_SEGUIMIENTOS } = require('./prompts/interviewer');
 const { armarSet, areasTecnicas, barajar } = require('./questionBank');
@@ -274,12 +278,12 @@ async function reproducir(ws, texto) {
   let bytes = 0;
   const escribir = (chunk) => { bytes += chunk.length; rep.write(chunk); };
   try {
-    // Lo que ya sonó una vez sale del caché en disco (ver ttsCache.js).
-    if (!ttsCache.servir(texto, escribir)) {
+    // Lo que ya sonó una vez con esta misma voz sale del caché en disco (ver ttsCache.js).
+    const firma = VOZ.firma();
+    if (!ttsCache.servir(texto, firma, escribir)) {
       const trozos = [];
-      const sintetizar = USAR_SAY ? sayStream : textToSpeechStream;
-      await sintetizar(texto, (chunk) => { trozos.push(chunk); escribir(chunk); });
-      ttsCache.guardar(texto, trozos);
+      await VOZ.sintetizar(texto, (chunk) => { trozos.push(chunk); escribir(chunk); });
+      ttsCache.guardar(texto, firma, trozos);
     }
   } catch (err) {
     enviar(ws, 'error', { mensaje: `TTS: ${err.message}` });

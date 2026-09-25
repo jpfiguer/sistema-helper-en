@@ -13,9 +13,11 @@
  * instante. Practicar una palabra difícil son diez repeticiones seguidas, y esperar la red
  * en cada una rompe el ritmo del ejercicio.
  *
- * Formato: PCM crudo, tal como llega de Cartesia, listo para el reproductor sin convertir.
- * La clave es el sha1 del texto más la voz y la velocidad — cambiar de voz invalida solo
- * lo de esa voz, sin tocar el resto.
+ * Formato: PCM crudo, tal como llega del proveedor, listo para el reproductor sin convertir.
+ * La clave es el sha1 del texto más la firma de la voz: proveedor, voz y sample rate, y en
+ * Cartesia además modelo, idioma, velocidad y volumen (ver `firma()` en cartesiaSpeaker.js y
+ * saySpeaker.js). Si cambia cualquiera de esos valores, los clips anteriores dejan de
+ * servirse en vez de sonar con la voz o la frecuencia equivocada.
  */
 
 'use strict';
@@ -30,14 +32,12 @@ const DIR = process.env.TTS_CACHE_DIR
 /** Tope del caché. Pasado esto se borra lo más viejo; audio de voz pesa poco. */
 const MAX_MB = Number(process.env.TTS_CACHE_MAX_MB ?? 200);
 
-function clave(texto) {
-  const voz = process.env.CARTESIA_VOICE_ID || 'default';
-  const vel = process.env.CARTESIA_SPEED || '1.0';
-  return crypto.createHash('sha1').update(`${voz}|${vel}|${texto}`).digest('hex');
+function clave(texto, firma) {
+  return crypto.createHash('sha1').update(`${firma}|${texto}`).digest('hex');
 }
 
-function ruta(texto) {
-  return path.join(DIR, `${clave(texto)}.pcm`);
+function ruta(texto, firma) {
+  return path.join(DIR, `${clave(texto, firma)}.pcm`);
 }
 
 function asegurarDir() {
@@ -45,8 +45,8 @@ function asegurarDir() {
 }
 
 /** Reproduce desde disco si está. Devuelve true si sirvió el caché. */
-function servir(texto, onChunk) {
-  const f = ruta(texto);
+function servir(texto, firma, onChunk) {
+  const f = ruta(texto, firma);
   let buf;
   try {
     buf = fs.readFileSync(f);
@@ -63,7 +63,7 @@ function servir(texto, onChunk) {
 }
 
 /** Guarda el audio de un texto. No guarda nada si la síntesis falló a medias. */
-function guardar(texto, trozos) {
+function guardar(texto, firma, trozos) {
   if (!trozos || !trozos.length) return;
   const buf = Buffer.concat(trozos);
   if (!buf.length) return;
@@ -71,7 +71,7 @@ function guardar(texto, trozos) {
   try {
     // Escribir a temporal y renombrar: si el proceso muere a mitad no queda un .pcm
     // truncado que después suene cortado para siempre.
-    const f = ruta(texto);
+    const f = ruta(texto, firma);
     const tmp = `${f}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, buf);
     fs.renameSync(tmp, f);
