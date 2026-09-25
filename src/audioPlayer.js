@@ -50,7 +50,9 @@ function elegirSalida(nombre) {
 }
 
 /**
- * Abre un reproductor de PCM. Devuelve un objeto con `write(chunk)` y `end()`.
+ * Abre un reproductor de PCM. Devuelve `write(chunk)`, `end()`, `kill()` y `terminado`, una
+ * promesa que se cumple cuando ffmpeg sale. Con audiotoolbox eso pasa cuando el audio terminó
+ * de sonar, no cuando terminó de llegar: el caché entrega todo de una vez.
  *
  * @param {object} [opts]
  * @param {number} [opts.sampleRate=24000]
@@ -93,7 +95,14 @@ function crearReproductor({
   // EPIPE si ffmpeg muere antes de que terminemos de escribir: ruido, no error real.
   ff.stdin.on('error', () => { /* noop */ });
 
+  // Si ffmpeg no llega a lanzarse, Node emite 'error' y después 'close'; se escuchan los dos.
+  const terminado = new Promise((resolve) => {
+    ff.on('close', resolve);
+    ff.on('error', resolve);
+  });
+
   return {
+    terminado,
     write(chunk) {
       if (cerrado) return false;
       return ff.stdin.write(chunk);

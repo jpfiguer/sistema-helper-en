@@ -97,6 +97,7 @@
               background:var(--alerta-suave);color:var(--alerta)}
   .pie{margin-top:34px;padding-top:14px;border-top:1px solid var(--linea);
        font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--tinta-3)}
+  body.microfono [data-i]{pointer-events:none}
 </style>
 </head>
 <body>
@@ -344,6 +345,11 @@
     pintarEstado(estadoActual);
   }
 
+  // Con el micrófono abierto, o por abrirse, no suena nada más: terminaría en el transcript.
+  // El servidor aplica la misma regla; esto solo evita ofrecer botones que no harían nada.
+  var SIN_AUDIO_EXTRA = { preguntando: true, escuchando: true, 'lectura:sonando': true };
+  function puedeSonar() { return !SIN_AUDIO_EXTRA[estadoActual]; }
+
   function pintarEstado(e) {
     estadoActual = e;
     var chip = $('chipEstado');
@@ -353,7 +359,7 @@
     btn.iniciar.disabled  = !(e === 'idle');
     btn.listo.disabled    = !(e === 'escuchando');
     btn.siguiente.disabled = !(e === 'esperando');
-    btn.repetir.disabled  = !(e === 'escuchando' || e === 'esperando');
+    btn.repetir.disabled  = !(e === 'esperando');
     btn.saltar.disabled   = (e === 'idle' || e === 'preguntando');
     $('btnReintentar').disabled = !(e === 'esperando' && modo === 'entrevista');
     btn.finalizar.disabled = (e === 'idle');
@@ -363,10 +369,16 @@
     $('btnEscuchar').disabled   = !(e === 'lectura:lista' || e === 'lectura:corregido');
     $('btnLeer').disabled       = !(e === 'lectura:lista');
     $('btnListoLec').disabled   = !(e === 'escuchando' && modo === 'lectura');
-    $('btnOtraVez').disabled    = !(enLec || (e === 'escuchando' && modo === 'lectura'));
+    $('btnOtraVez').disabled    = !((enLec && e !== 'lectura:sonando') || (e === 'escuchando' && modo === 'lectura'));
     $('btnSigFrase').disabled   = !(e === 'lectura:corregido');
     $('btnFinLec').disabled     = (e === 'idle');
     $('selRonda').disabled      = !(e === 'idle');
+
+    // «▶ Oír» y las palabras marcadas quedan inactivos mientras el micrófono esté abierto.
+    Array.prototype.forEach.call(document.querySelectorAll('button[data-say]'), function (b) {
+      b.disabled = !puedeSonar();
+    });
+    document.body.classList.toggle('microfono', !puedeSonar());
   }
 
   // Respuesta completa en pantalla; `lecIdx` es la frase que toca leer.
@@ -417,7 +429,7 @@
     }).filter(Boolean).join(' ');
   }
 
-  function decir(texto) { if (texto) mandar({ tipo: 'decir', texto: texto }); }
+  function decir(texto) { if (texto && puedeSonar()) mandar({ tipo: 'decir', texto: texto }); }
 
   /** Lista de práctica: lo que falló, con su fragmento y un botón para oírlo. */
   function pintarDrill() {
@@ -440,6 +452,7 @@
     $('drill').hidden = false;
 
     Array.prototype.forEach.call($('drill').querySelectorAll('button[data-say]'), function (b) {
+      b.disabled = !puedeSonar();
       b.addEventListener('click', function () { decir(fragmento(Number(b.getAttribute('data-say')))); });
     });
   }

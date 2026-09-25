@@ -179,9 +179,8 @@ function estado(ws, nombre, extra = {}) {
  * termina de sonar, abre el micrófono.
  */
 async function turnoEntrevistador(ws, ultimaRespuesta = '') {
+  const mia = S;
   const planificada = S.preguntas[S.indice]?.texto;
-
-  if (!planificada && !ultimaRespuesta) return finalizar(ws);
   if (!planificada) return finalizar(ws);
 
   estado(ws, 'preguntando');
@@ -195,9 +194,12 @@ async function turnoEntrevistador(ws, ultimaRespuesta = '') {
       historial: S.historial,
     });
   } catch (err) {
+    if (S !== mia) return;
     enviar(ws, 'error', { mensaje: `El entrevistador falló: ${err.message}` });
     return estado(ws, 'idle');
   }
+  // Mientras el modelo respondía, la sesión pudo terminar o ser reemplazada por otra.
+  if (S !== mia) return;
 
   // ¿Repreguntó sobre lo anterior o avanzó? Heurística: si el texto contiene el núcleo de la
   // pregunta planificada, la hizo. Si no, fue repregunta y la planificada sigue pendiente.
@@ -219,7 +221,7 @@ async function turnoEntrevistador(ws, ultimaRespuesta = '') {
   sesion.log('pregunta', { texto, esSeguimiento: !avanzo });
 
   await hablar(ws, texto);
-  if (S) abrirMicrofono(ws);
+  if (S === mia && S.estado === 'preguntando') abrirMicrofono(ws);
 }
 
 /**
@@ -238,33 +240,59 @@ function pareceMismaPregunta(dicho, planificada) {
   return hits / clave.size >= 0.45;
 }
 
-/** Sintetiza y reproduce por parlantes. Resuelve cuando terminó de sonar. */
-async function hablar(ws, texto) {
+const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Todo el audio pasa por esta fila, un clip a la vez. El micrófono puede esperar entonces a
+// que no quede nada sonando.
+let colaAudio = Promise.resolve();
+let clipsPendientes = 0;
+
+/**
+ * Sintetiza y reproduce por parlantes. Resuelve cuando el audio terminó de sonar, no cuando
+ * terminó de generarse: desde el caché los bytes llegan todos de una vez y la reproducción
+ * sigue varios segundos después.
+ */
+function hablar(ws, texto) {
+  clipsPendientes += 1;
+  const clip = colaAudio
+    .then(() => reproducir(ws, texto))
+    .finally(() => { clipsPendientes -= 1; });
+  colaAudio = clip.catch(() => { /* el error ya le llegó a quien pidió el clip */ });
+  return clip;
+}
+
+async function reproducir(ws, texto) {
   const rep = crearReproductor({
     sampleRate: SAMPLE_RATE,
     onError: (e) => enviar(ws, 'error', { mensaje: `Audio de salida: ${e.message}` }),
   });
   // Puede no haber sesión viva: practicar una palabra suelta después del resumen es válido.
   if (S) S.reproductor = rep;
+  let bytes = 0;
+  const escribir = (chunk) => { bytes += chunk.length; rep.write(chunk); };
   try {
-    // El mismo texto suena igual siempre. Las frases de lectura, los fragmentos de «▶ Oír»
-    // y repetir una pregunta salen del disco: ahorra créditos y, sobre todo, suena al
-    // instante — practicar una palabra son diez repeticiones y esperar la red las rompe.
-    if (!ttsCache.servir(texto, (chunk) => rep.write(chunk))) {
+    // Lo que ya sonó una vez sale del caché en disco (ver ttsCache.js).
+    if (!ttsCache.servir(texto, escribir)) {
       const trozos = [];
       const sintetizar = USAR_SAY ? sayStream : textToSpeechStream;
-      await sintetizar(texto, (chunk) => { trozos.push(chunk); rep.write(chunk); });
+      await sintetizar(texto, (chunk) => { trozos.push(chunk); escribir(chunk); });
       ttsCache.guardar(texto, trozos);
     }
   } catch (err) {
     enviar(ws, 'error', { mensaje: `TTS: ${err.message}` });
   } finally {
     rep.end();
-    if (S) S.reproductor = null;
   }
-  // Colchón para que ffmpeg drene el buffer antes de abrir el mic; sin esto el final de la
-  // pregunta se cuela por el micrófono y Deepgram lo transcribe como si lo hubieras dicho tú.
-  await new Promise((r) => setTimeout(r, 400));
+
+  // ffmpeg sale cuando terminó de reproducir. El tope (duración del audio más 5 s) evita que
+  // un dispositivo de salida colgado deje la sesión esperando para siempre.
+  const tope = (bytes / (SAMPLE_RATE * 2)) * 1000 + 5000;
+  const termino = await Promise.race([rep.terminado.then(() => true), esperar(tope).then(() => false)]);
+  if (!termino) rep.kill();
+  if (S && S.reproductor === rep) S.reproductor = null;
+
+  // Colchón antes de abrir el micrófono, para que no entre lo último que sale del parlante.
+  await esperar(400);
 }
 
 // ── turno del candidato ───────────────────────────────────────────────────────
@@ -282,11 +310,14 @@ function abrirMicrofono(ws) {
   const dg = new DeepgramListener(process.env.DEEPGRAM_API_KEY);
   S.dg = dg;
 
-  // Misma guarda que en la captura: un transcript puede llegar después de cerrada la sesión.
-  const miaDg = S;
+  // ffmpeg y Deepgram siguen entregando datos un rato después de pararlos, y la sesión puede
+  // haber terminado o abierto otra escucha entretanto. Cada callback revisa que su escucha
+  // siga siendo la actual; lo que llega tarde se descarta.
+  const mia = S;
+  const vigente = () => S === mia && S.dg === dg;
 
   dg.on('interim', ({ text }) => {
-    if (S !== miaDg) return;
+    if (!vigente()) return;
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.parcial = text;
     enviar(ws, 'parcial', { texto: text });
@@ -294,7 +325,7 @@ function abrirMicrofono(ws) {
   });
 
   dg.on('final', ({ text, words }) => {
-    if (S !== miaDg) return;
+    if (!vigente()) return;
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.finales.push(text);
     // Palabra por palabra con su confianza: es lo único que permite señalar cuál
@@ -305,28 +336,23 @@ function abrirMicrofono(ws) {
     rearmarSilencio(ws);
   });
 
-  dg.on('error', (e) => { if (S === miaDg) enviar(ws, 'error', { mensaje: `STT: ${e.message}` }); });
+  dg.on('error', (e) => { if (vigente()) enviar(ws, 'error', { mensaje: `STT: ${e.message}` }); });
   dg.connect();
 
-  // ffmpeg no se apaga al instante: después de pararlo siguen llegando los chunks que ya
-  // estaban en vuelo. Si mientras tanto la sesión terminó, S es null y el proceso entero se
-  // caía con "Cannot read properties of null". Comparar contra la sesión que abrió este
-  // micrófono descarta además el audio de una sesión anterior que todavía no murió.
-  const mia = S;
   startCapture({
     onChunk: (chunk) => {
-      if (S !== mia) return;
+      if (!vigente()) return;
       S.bytes += chunk.length;
       dg.sendAudio(chunk);
     },
-    onError: (e) => { if (S === mia) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); },
+    onError: (e) => { if (vigente()) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); },
   })
     .then((stop) => {
-      // La sesión pudo terminar mientras el micrófono todavía estaba arrancando.
-      if (S !== mia) { try { stop(); } catch { /* noop */ } return; }
+      // La escucha pudo cerrarse mientras ffmpeg todavía estaba arrancando.
+      if (!vigente()) { try { stop(); } catch { /* noop */ } return; }
       S.pararCaptura = stop;
     })
-    .catch((e) => { if (S === mia) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); });
+    .catch((e) => { if (vigente()) enviar(ws, 'error', { mensaje: `Micrófono: ${e.message}` }); });
 }
 
 /** Cuántas palabras del texto esperado se llevan dichas, de 0 a 1. null si no hay esperado. */
@@ -376,9 +402,10 @@ function pararEscucha() {
 async function escucharFrase(ws) {
   const f = fraseActual();
   if (!f) return;
+  const mia = S;
   estado(ws, 'lectura:sonando');
   await hablar(ws, f.texto);
-  if (S) estado(ws, 'lectura:lista');
+  if (S === mia && S.estado === 'lectura:sonando') estado(ws, 'lectura:lista');
 }
 
 /** Muestra la frase que toca y abre el micrófono para que la leas. */
@@ -460,6 +487,7 @@ async function cerrarRespuesta(ws) {
   if (!S || S.estado !== 'escuchando') return;
   if (S.modo === 'lectura') return cerrarFrase(ws);
   pararEscucha();
+  const mia = S;
 
   const texto = [...S.finales, S.parcial].filter(Boolean).join(' ').trim();
   if (!texto) {
@@ -515,7 +543,8 @@ async function cerrarRespuesta(ws) {
     sesion.log('evaluacion', { evaluacion });
   }
 
-  if (!S) return;
+  // Mientras se evaluaba pudiste saltar de pregunta o terminar la sesión: ese estado manda.
+  if (S !== mia || S.estado !== 'evaluando') return;
   if (S.indice >= S.preguntas.length) return finalizar(ws);
   estado(ws, 'esperando');   // la UI muestra "siguiente"; no encadenamos solos para que
                              // puedas leer el feedback antes de la próxima pregunta
@@ -555,6 +584,10 @@ function finalizar(ws) {
 }
 
 // ── websocket ─────────────────────────────────────────────────────────────────
+
+// Estados con el micrófono abierto o por abrirse: ahí no se acepta audio extra
+// («Repetir», «▶ Oír»), porque saldría por el parlante y entraría al transcript.
+const SIN_AUDIO_EXTRA = new Set(['preguntando', 'escuchando', 'lectura:sonando']);
 
 wss.on('connection', (ws) => {
   enviar(ws, 'hola', { modelo: MODELO, areas: areasTecnicas() });
@@ -604,19 +637,34 @@ wss.on('connection', (ws) => {
         }
 
         case 'escucharFrase':    // oír la frase antes de repetirla
-          if (S?.modo === 'lectura') await escucharFrase(ws);
+          if (S?.modo === 'lectura' && (S.estado === 'lectura:lista' || S.estado === 'lectura:corregido')) {
+            await escucharFrase(ws);
+          }
           break;
 
-        case 'leerFrase':        // abrir el mic para leer la frase en pantalla
-          if (S?.modo === 'lectura' && S.estado !== 'escuchando') abrirMicrofono(ws);
+        case 'leerFrase': {      // abrir el mic para leer la frase en pantalla
+          if (S?.modo !== 'lectura' || S.estado !== 'lectura:lista') break;
+          if (clipsPendientes > 0) {
+            // Todavía suena un «▶ Oír»: el micrófono espera a que termine para no grabarlo.
+            const mia = S;
+            estado(ws, 'lectura:sonando');
+            await colaAudio;
+            if (S !== mia || S.estado !== 'lectura:sonando') break;
+          }
+          abrirMicrofono(ws);
           break;
+        }
 
         case 'reintentarFrase':  // misma frase otra vez, sin avanzar
-          if (S?.modo === 'lectura') mostrarFrase(ws);
+          if (S?.modo === 'lectura' && S.estado !== 'lectura:sonando') {
+            // Si estaba grabando, esa lectura se descarta y se cierran ffmpeg y Deepgram.
+            if (S.estado === 'escuchando') pararEscucha();
+            mostrarFrase(ws);
+          }
           break;
 
         case 'siguienteFrase':
-          if (S?.modo === 'lectura') avanzarFrase(ws);
+          if (S?.modo === 'lectura' && S.estado === 'lectura:corregido') avanzarFrase(ws);
           break;
 
         case 'listo':            // "terminé de responder", sin esperar el silencio
@@ -624,17 +672,21 @@ wss.on('connection', (ws) => {
           break;
 
         case 'siguiente': {
-          if (!S) break;
+          if (S?.modo !== 'entrevista' || S.estado !== 'esperando') break;
           const ultima = S.historial.filter((h) => h.role === 'user').slice(-1)[0]?.content || '';
           await turnoEntrevistador(ws, ultima);
           break;
         }
 
-        case 'repetir':          // volver a escuchar la pregunta actual
-          if (S?.preguntaActual) await hablar(ws, S.preguntaActual);
+        case 'repetir':          // volver a escuchar la pregunta actual, con el micrófono cerrado
+          if (S?.modo === 'entrevista' && S.estado === 'esperando' && S.preguntaActual) {
+            await hablar(ws, S.preguntaActual);
+          }
           break;
 
         case 'decir': {
+          // Con el micrófono abierto, o por abrirse, el audio terminaría en el transcript.
+          if (S && SIN_AUDIO_EXTRA.has(S.estado)) break;
           // Escuchar cómo se dice lo que falló, para repetirlo. Va por fragmento y no por
           // palabra suelta: los errores que importan son de habla encadenada —"out to more"
           // dicho rápido suena a "of the motor"— y una palabra aislada no entrena eso.
@@ -644,17 +696,17 @@ wss.on('connection', (ws) => {
         }
 
         case 'reintentar':       // MISMA pregunta, otro intento, para comparar
-          // Vuelve a decir la pregunta antes de abrir el micrófono: sin ese aviso auditivo
-          // la grabación arrancaba en silencio y no había forma de saber que ya estaba.
-          if (S && S.modo === 'entrevista' && S.estado !== 'escuchando') {
+          // Repite la pregunta antes de abrir el micrófono: es la señal de que ya puedes hablar.
+          if (S?.modo === 'entrevista' && S.estado === 'esperando') {
+            const mia = S;
             estado(ws, 'preguntando');
             if (S.preguntaActual) await hablar(ws, S.preguntaActual);
-            if (S) abrirMicrofono(ws);
+            if (S === mia && S.estado === 'preguntando') abrirMicrofono(ws);
           }
           break;
 
         case 'saltar':
-          if (!S) break;
+          if (S?.modo !== 'entrevista' || S.estado === 'preguntando') break;
           pararEscucha();
           S.indice += 1;
           S.seguimientos = 0;
