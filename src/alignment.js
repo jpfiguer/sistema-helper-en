@@ -1,44 +1,24 @@
 /**
  * Alineación entre lo que ibas a leer y lo que Deepgram oyó.
  *
- * Esto es lo que hace posible el feedback de pronunciación, y solo funciona en modo lectura.
- * En una entrevista improvisada nadie sabe qué palabra intentaste decir, así que un transcript
- * raro puede ser una mala pronunciación o puede ser que cambiaste de idea a mitad de frase.
- * Cuando el texto esperado existe, la diferencia entre los dos es medible.
+ * Solo sirve cuando hay texto esperado (modo lectura y entrevista con apoyo). Alinea las dos
+ * secuencias de tokens y clasifica cada palabra esperada: ok, dudosa, cambiada, omitida o
+ * sin-evaluar; lo que se oyó de más queda como agregada.
  *
- * QUÉ DETECTA Y QUÉ NO — leer esto antes de confiar en el número:
- *
- * Deepgram es un transcriptor, no un evaluador de pronunciación. nova-3 además "arregla" lo
- * que dices (ver deepgramListener.js), así que el sesgo es optimista. En concreto:
- *
- *   SÍ detecta  · palabras tan mal pronunciadas que se convierten en otra ("beach"→"bitch",
- *                 "focus"→"fuck us", "sheet"→"shit" — los clásicos del hispanohablante)
- *               · palabras que te comiste entera
- *               · palabras que el modelo apenas reconoció (confianza baja)
- *               · repeticiones y autocorrecciones ("the the", "I mean, the system")
- *
- *   NO detecta  · acento sobre la palabra correcta: si dices "development" con la sílaba
- *                 tónica corrida pero se entiende, pasa limpio
- *               · duración de vocales, schwa, entonación de la frase
- *               · la diferencia entre sonar entendible y sonar natural
- *
- * Para eso último hace falta una API de evaluación de pronunciación de verdad, que puntúa
- * fonema por fonema (Azure Speech tiene una). Esto cubre lo grueso sin agregar un cuarto
- * proveedor, y lo grueso es lo que te hace perder una entrevista.
- *
- * El umbral de confianza es una heurística, no una medida calibrada. Está acá arriba y se
- * cambia en un solo lugar.
+ * Deepgram transcribe, no evalúa pronunciación: detecta una palabra que se oyó como otra
+ * ("ship" como "sheep", "full" como "fool"), una palabra comida o una apenas reconocida, pero
+ * no el acento sobre la palabra correcta. El detalle está en el README, en «Qué NO detecta».
  */
 
 'use strict';
 
-/** Debajo de esto, una palabra reconocida se marca como dudosa. Heurística, no ciencia. */
+/** Confianza bajo la cual una palabra reconocida se marca dudosa. Es una heurística sin calibrar. */
 const CONFIANZA_DUDOSA = 0.85;
 
 /**
  * Contracciones expandidas en ambos lados antes de comparar.
  * Deepgram a veces devuelve "do not" donde el texto dice "don't" y viceversa; sin esto
- * cada contracción aparecía como un par omitida+agregada y ensuciaba todo el reporte.
+ * cada contracción aparece como una palabra omitida más una agregada.
  */
 const CONTRACCIONES = [
   ["don't", 'do not'], ["doesn't", 'does not'], ["didn't", 'did not'],
@@ -56,18 +36,18 @@ const CONTRACCIONES = [
 const ES_NUMERO = /^[\d.,%$]+$/;
 
 function normalizar(texto) {
-  let t = String(texto || '').toLowerCase();
+  // El apóstrofo curvo pasa a recto antes de expandir: "don’t" también es "do not".
+  let t = String(texto || '').toLowerCase().replace(/[‘’]/g, "'");
   for (const [corta, larga] of CONTRACCIONES) {
     t = t.split(corta).join(larga);
   }
   return t
-    .replace(/[‘’]/g, "'")
     .replace(/[^\p{L}\p{N}\s'%$.,]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Texto esperado → lista de tokens comparables. */
+/** Convierte el texto esperado en tokens comparables. */
 function tokenizar(texto) {
   const t = normalizar(texto);
   if (!t) return [];
@@ -75,7 +55,7 @@ function tokenizar(texto) {
 }
 
 /**
- * Palabras de Deepgram → tokens comparables, conservando confianza y tiempos.
+ * Convierte las palabras de Deepgram en tokens comparables, con su confianza y sus tiempos.
  * Acepta tanto el formato crudo (`{word, confidence, start, end}`) como una lista de strings.
  */
 function tokenizarOidas(palabras) {
@@ -99,9 +79,8 @@ function tokenizarOidas(palabras) {
 /**
  * Needleman-Wunsch sobre tokens: da el emparejamiento que minimiza ediciones.
  *
- * Se usa alineación global y no un diff por líneas porque lo que importa es qué palabra
- * concreta reemplazó a cuál. Un diff te dice "esta frase cambió"; esto te dice
- * "dijiste 'focus' y se oyó 'fuck us'", que es el feedback accionable.
+ * Alineación global en vez de un diff de líneas, porque el feedback necesita saber qué
+ * palabra reemplazó a cuál: "ship" se oyó "sheep".
  */
 function alinearTokens(esperados, oidos) {
   const n = esperados.length;
@@ -149,10 +128,9 @@ function alinearTokens(esperados, oidos) {
 /**
  * Clasifica un par alineado.
  *
- * Los números escritos con dígitos quedan fuera de la evaluación a propósito: el texto dice
- * "2,700" y tú dices "twenty-seven hundred" o "two thousand seven hundred", las dos correctas.
- * Penalizar eso convertía el reporte en ruido justo en las frases con tus métricas, que son
- * las que más te conviene practicar.
+ * Los números escritos con dígitos quedan fuera de la evaluación: el texto dice "2,700" y tú
+ * dices "twenty-seven hundred" o "two thousand seven hundred", y las dos lecturas son
+ * correctas. Compararlos marcaría como error una lectura bien hecha.
  */
 function clasificar(par, umbral) {
   const { esperada, oida } = par;
@@ -209,8 +187,8 @@ function compararFrase(esperado, palabrasOidas, { umbral = CONFIANZA_DUDOSA } = 
 }
 
 /**
- * Agrega los problemas de varias frases en una lista de palabras a trabajar.
- * Ordena por cuántas veces te costó la misma palabra, que es la señal que sirve entre sesiones.
+ * Agrega los problemas de varias frases en una lista de palabras a trabajar, ordenada por
+ * cuántas veces falló la misma palabra.
  */
 function palabrasATrabajar(comparaciones) {
   const mapa = new Map();
@@ -233,13 +211,9 @@ function palabrasATrabajar(comparaciones) {
 /**
  * Compara dos intentos de la misma respuesta para decir si mejoró o empeoró.
  *
- * Existe porque repetir sin saber si mejoraste no es práctica, es repetición. La señal que
- * sirve no es «tuviste 10 problemas» sino «arreglaste estas tres y rompiste esta otra»:
- * lo segundo es accionable en el intento siguiente.
- *
- * Trabaja sobre el conjunto de palabras problemáticas de cada intento, no sobre la
- * precisión sola, porque el mismo porcentaje puede esconder que cambiaste unos errores
- * por otros.
+ * Devuelve qué palabras se arreglaron, cuáles empeoraron y cuáles siguen fallando. Trabaja
+ * sobre el conjunto de palabras problemáticas de cada intento y no sobre la precisión sola,
+ * porque el mismo porcentaje puede esconder que cambiaste unos errores por otros.
  *
  * @param {object} antes  resultado de compararFrase del intento previo
  * @param {object} ahora  resultado del intento nuevo
@@ -259,8 +233,7 @@ function compararIntentos(antes, ahora) {
     ? Number((pb - pa).toFixed(3))
     : null;
 
-  // El veredicto mira las palabras, no el porcentaje: cambiar unos errores por otros deja
-  // la precisión igual y no es haber mejorado.
+  // El veredicto sale de las palabras; la diferencia de precisión solo desempata.
   let veredicto = 'igual';
   if (arregladas.length > empeoradas.length) veredicto = 'mejor';
   else if (empeoradas.length > arregladas.length) veredicto = 'peor';

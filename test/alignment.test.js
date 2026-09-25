@@ -31,6 +31,18 @@ test('las contracciones se expanden en ambos lados', () => {
   assert.equal(normalizar('I do not know'), 'i do not know');
 });
 
+test('una contracción con apóstrofo curvo también se expande', () => {
+  assert.equal(normalizar('I don’t know'), 'i do not know');
+  assert.equal(normalizar('It’s what we’re measuring'), 'it is what we are measuring');
+});
+
+test('leer bien una contracción con apóstrofo curvo no cuenta como error', () => {
+  const r = compararFrase('I don’t run it', oidas("i don't run it"));
+  assert.equal(r.resumen.precision, 1);
+  assert.equal(r.problemas.length, 0);
+  assert.equal(r.resumen.agregada, 0);
+});
+
 test('una contracción no cuenta como omitida más agregada', () => {
   const r = compararFrase("I don't run Kubernetes", oidas('i do not run kubernetes'));
   assert.equal(r.resumen.omitida, 0);
@@ -47,12 +59,19 @@ test('la puntuación no cambia el resultado', () => {
 // ── los tres tipos de problema ────────────────────────────────────────────────
 
 test('una palabra que se convirtió en otra se marca cambiada, con lo que se oyó', () => {
-  const r = compararFrase('I focus on evaluation', oidas('i fuck us on evaluation'));
+  const r = compararFrase('we ship it every week', oidas('we sheep it every week'));
   const cambiada = r.items.find((i) => i.tipo === 'cambiada');
   assert.ok(cambiada, 'debería haber una palabra cambiada');
-  assert.equal(cambiada.esperada, 'focus');
+  assert.equal(cambiada.esperada, 'ship');
   // el reporte tiene que decir QUÉ se oyó, no solo que estuvo mal
-  assert.ok(cambiada.oida);
+  assert.equal(cambiada.oida, 'sheep');
+});
+
+test('un par mínimo de vocal larga y corta se detecta en cualquier sentido', () => {
+  const r = compararFrase('the queue is full', oidas('the queue is fool'));
+  const cambiada = r.items.find((i) => i.tipo === 'cambiada');
+  assert.equal(cambiada.esperada, 'full');
+  assert.equal(cambiada.oida, 'fool');
 });
 
 test('una palabra comida se marca omitida', () => {
