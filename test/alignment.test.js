@@ -164,7 +164,7 @@ test('los ids del set de lectura son únicos', () => {
 
 test('ninguna frase pasa de 20 palabras', () => {
   // El endpointing de Deepgram parte las frases largas y la alineación queda a medias,
-  // culpando a palabras que sí dijo. El límite está documentado en lecturas.js.
+  // culpando a palabras que sí dijiste. El límite está documentado en lecturas.js.
   for (const l of LECTURAS) {
     for (const f of l.frases) {
       const n = f.split(/\s+/).filter(Boolean).length;

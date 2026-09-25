@@ -9,9 +9,9 @@
  * El contenido no es genérico: son respuestas reales de entrevista. Practicar con material
  * propio sirve doble: entrena la boca y fija la respuesta.
  *
- * LARGO DE LAS FRASES. Entre ocho y veinte palabras, que es una respiración y un `final` de
+ * LARGO DE LAS FRASES. Hasta veinte palabras, que es una respiración y un `final` de
  * Deepgram. Más largo y el endpointing parte la frase por la mitad, la alineación queda a
- * medias y el feedback culpa a palabras que sí dijiste. Si agregas contenido, respeta esto.
+ * medias y el feedback culpa a palabras que sí dijiste. Un test verifica el tope.
  */
 
 'use strict';
@@ -242,8 +242,8 @@ function armarLectura({ ids = null, ronda = null } = {}) {
  * La respuesta completa de una lectura, como se diría de corrido.
  *
  * En modo guiado se lee entera de una vez, no frase por frase, así que la alineación
- * necesita el texto unido. Needleman-Wunsch sobre setenta tokens es trivial; el largo no
- * es problema acá, al revés que en lectura donde el endpointing sí obliga a cortar.
+ * necesita el texto unido. Alinear una respuesta entera con Needleman-Wunsch es barato; el
+ * largo no es problema acá, al revés que en lectura donde el endpointing sí obliga a cortar.
  */
 function respuestaCompleta(lectura) {
   return (lectura?.frases || []).join(' ');

@@ -50,6 +50,19 @@ test('cuenta muletillas de una palabra y de frase sin contarlas dos veces', () =
   assert.equal(total, 6);  // so, um, you know, the thing is, like, basically
 });
 
+test('so, well y right cuentan solo al abrir la respuesta', () => {
+  // En medio de la frase son vocabulario: "it works well", "the right answer", "so we shipped".
+  const medio = contarRellenos('it works well and it is the right answer, so we shipped it');
+  assert.equal(medio.total, 0);
+  assert.equal(medio.detalle.well, undefined);
+  assert.equal(medio.detalle.right, undefined);
+  assert.equal(medio.detalle.so, undefined);
+
+  const apertura = contarRellenos('Well, we moved the pipeline to streaming');
+  assert.equal(apertura.detalle.well, 1);
+  assert.equal(apertura.total, 1);
+});
+
 test('detecta fugas al español', () => {
   const { detalle } = contarRellenos('the pipeline was o sea complicated entonces we changed it');
   assert.equal(detalle['o sea'], 1);
