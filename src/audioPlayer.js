@@ -1,15 +1,14 @@
 /**
  * Reproduce el audio del entrevistador por los parlantes.
  *
- * El audio sale por la salida real del sistema, para que lo escuches tú, y no hay ruta
- * hacia un micrófono virtual.
+ * `elegirSalida()` rechaza por nombre los dispositivos de audio virtual conocidos (BlackHole,
+ * Loopback, Soundflower, VB-Cable, VoiceMeeter) cuando OUTPUT_DEVICE apunta a uno. Sin
+ * OUTPUT_DEVICE se usa la salida por defecto del sistema, que no se revisa: si esa salida ya
+ * es un dispositivo virtual, este chequeo no lo detecta.
  *
- * Eso está además verificado en código, no solo documentado: `elegirSalida()` rechaza los
- * dispositivos de loopback conocidos (BlackHole, Loopback, Soundflower, VB-Cable). Si alguien
- * apunta la salida a uno de ellos, el módulo se niega a arrancar.
- *
- * Backend: ffmpeg + audiotoolbox, igual que la captura — no compila nada y ya está instalado.
- * Entrada: PCM 16-bit LE mono al sample rate que entrega Cartesia (24 kHz por defecto).
+ * Backend: ffmpeg con salida audiotoolbox, solo macOS.
+ * Entrada: PCM 16-bit LE mono a CARTESIA_SAMPLE_RATE (24 kHz por defecto), venga de Cartesia
+ * o de `say`.
  */
 
 'use strict';

@@ -1,17 +1,14 @@
 /**
- * Captura de tu micrófono — el audio que se transcribe eres tú hablando en inglés.
+ * Captura de tu micrófono: el audio que se transcribe eres tú hablando en inglés.
  *
- * La entrada es tu micrófono real, porque lo que se mide es tu habla.
- *
- * Backend: ffmpeg + avfoundation. En vez de `naudiodon` (módulo nativo, build frágil en macOS
- * reciente / arm64), usamos el ffmpeg del sistema, que ya viene instalado y resamplea a
- * 16k mono PCM sin compilar nada.
+ * Backend: ffmpeg + avfoundation, solo macOS. En vez de `naudiodon` (módulo nativo que hay que
+ * compilar) se usa ffmpeg, que resamplea a PCM 16 kHz mono sin compilar nada.
  *
  * Salida: PCM 16-bit little-endian, mono, 16 kHz (linear16, el formato que espera Deepgram
  * nova-3), emitido en chunks vía callback `onChunk(Buffer)`.
  *
- * Los bytes que pasan por acá son además la fuente de la duración real de cada respuesta:
- * 32.000 bytes = 1 segundo. Ver `metrics.js`.
+ * Los bytes que pasan por acá son además la base de la duración de cada respuesta:
+ * 32.000 bytes = 1 segundo. Ver `metrics.js` y el README.
  *
  * Interfaz:
  *   listDevices() -> Promise<[{ index, name }]>
@@ -58,7 +55,7 @@ function parseAudioDevices(stderr) {
  * Arranca la captura desde `deviceName` y entrega PCM en chunks por `onChunk`.
  * Resuelve a una función `stop()` que termina el proceso de ffmpeg.
  *
- * @throws si el dispositivo no se encuentra (ej. BlackHole no instalado).
+ * @throws si no encuentra el micrófono pedido.
  */
 async function startCapture({
   deviceName = process.env.INPUT_DEVICE || '',
@@ -77,7 +74,7 @@ async function startCapture({
   if (!match) {
     const available = devices.length
       ? devices.map((d) => `[${d.index}] ${d.name}`).join(', ')
-      : '(ninguno — ¿ffmpeg/avfoundation OK?)';
+      : '(ninguno; revisa que ffmpeg funcione con avfoundation)';
     throw new Error(
       `Micrófono no encontrado${deviceName ? `: "${deviceName}"` : ''}. ` +
       `Disponibles: ${available}. ` +

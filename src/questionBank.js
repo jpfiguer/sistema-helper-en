@@ -1,11 +1,9 @@
 /**
  * Banco de preguntas para entrevistas de Data / AI Engineer, en inglés.
  *
- * Las preguntas no son inventadas: están derivadas de requisitos reales de avisos de
- * Data Engineer, AI Engineer y Data Architect remotos publicados en 2026 (RAG en producción,
- * pipelines batch y streaming, evaluación de modelos, orquestación multi-modelo, arquitecturas
- * de agentes). La idea es practicar contra lo que de verdad te van a preguntar, no contra un
- * listado genérico de "tell me about yourself".
+ * Las preguntas salen de requisitos de avisos remotos de Data Engineer, AI Engineer y Data
+ * Architect publicados en 2026: RAG en producción, pipelines batch y streaming, evaluación de
+ * modelos, orquestación multi-modelo y arquitecturas de agentes.
  *
  * Cada pregunta trae:
  *   id        estable, para poder comparar sesiones entre sí
@@ -14,8 +12,8 @@
  *   texto     la pregunta, tal como la haría un entrevistador
  *   dificil   si conviene dejarla para cuando ya estés cómodo
  *
- * Un "set" es una entrevista armada: arranca liviano, sube a técnico, pega una de profundidad
- * y cierra. Es la forma real de una entrevista de 30–40 minutos.
+ * Un "set" es una entrevista armada: arranca liviano, sube a técnico, pasa por una de
+ * profundidad, una de comportamiento y cierra.
  */
 
 'use strict';

@@ -1,17 +1,12 @@
 /**
- * Caché en disco del audio de Cartesia.
+ * Caché en disco del audio sintetizado, con Cartesia o con `say`.
  *
- * El mismo texto suena igual siempre, así que pagarlo dos veces es tirar plata. Y acá se
- * repite mucho más de lo que parece: las frases del set de lectura son fijas, los fragmentos
- * de «▶ Oír» salen de un texto esperado que no cambia, y «Repetir pregunta» e «Intentar de
- * nuevo» vuelven a decir exactamente lo mismo que ya sonó.
+ * El mismo texto con la misma voz suena igual siempre, y acá se repite seguido: las frases del
+ * set de lectura son fijas, los fragmentos de «▶ Oír» salen de un texto que no cambia, y
+ * «Repetir pregunta» e «Intentar de nuevo» vuelven a decir lo que ya sonó. Las preguntas del
+ * entrevistador se generan de nuevo en cada turno, así que esas se sintetizan cada vez.
  *
- * Lo único que no se repite son las preguntas del entrevistador, porque el LLM las reformula
- * en cada turno. Eso es a propósito y se paga una vez por turno; todo lo demás sale del disco.
- *
- * Efecto secundario que importa tanto como el ahorro: un fragmento cacheado suena al
- * instante. Practicar una palabra difícil son diez repeticiones seguidas, y esperar la red
- * en cada una rompe el ritmo del ejercicio.
+ * Desde el caché el audio suena sin esperar la red y sin gastar créditos de Cartesia.
  *
  * Formato: PCM crudo, tal como llega del proveedor, listo para el reproductor sin convertir.
  * La clave es el sha1 del texto más la firma de la voz: proveedor, voz y sample rate, y en
@@ -100,7 +95,7 @@ function podar() {
   } catch { /* noop */ }
 }
 
-/** Cuántos archivos y cuántos MB hay guardados. Para el preflight. */
+/** Cuántos archivos y cuántos MB hay guardados. Lo muestra el servidor al arrancar. */
 function estado() {
   try {
     const archivos = fs.readdirSync(DIR).filter((n) => n.endsWith('.pcm'));

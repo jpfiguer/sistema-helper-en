@@ -1,15 +1,9 @@
 /**
  * Voz de respaldo con `say`, el sintetizador de macOS. Gratis y sin red.
  *
- * Existe por dos motivos distintos, los dos prácticos:
- *
- *   1. Si se acaban los créditos de Cartesia a mitad de semana, la práctica no se detiene.
- *      Quedarse sin poder practicar por una cuota es la peor forma de romper una racha.
- *   2. Alguien que clona el repo puede probarlo sin sacar una cuenta de Cartesia. Tres API
- *      keys antes de oír nada es una barrera alta para evaluar si la herramienta sirve.
- *
- * NO es equivalente en calidad, y conviene decirlo: para IMITAR pronunciación quieres la
- * voz mejor que tengas. Esto sirve para no parar, no para reemplazar.
+ * Sirve para seguir practicando cuando se acaban los créditos de Cartesia, y para probar el
+ * repo sin una cuenta de Cartesia. La calidad es peor, y para imitar pronunciación conviene la
+ * mejor voz que tengas.
  *
  * Se activa con TTS_PROVIDER=say. La voz se elige con SAY_VOICE (por defecto Samantha,
  * en_US); `say -v '?'` lista las instaladas.
@@ -43,10 +37,6 @@ function sayStream(texto, onChunk) {
     const t = String(texto || '').trim();
     if (!t) return resolve();
 
-    // `say` solo escribe a un archivo: con `-o -` o `-o /dev/stdout` falla con
-    // "Opening output file failed: fmt?" porque deduce el formato de la extensión.
-    // Así que temporal .aiff y ffmpeg lo convierte al PCM que espera el reproductor.
-    // Se paga una sola vez por texto: de ahí en adelante sale del caché.
     const tmp = path.join(os.tmpdir(), `shen-say-${process.pid}-${Date.now()}.aiff`);
 
     const limpiar = () => { try { fs.unlinkSync(tmp); } catch { /* noop */ } };

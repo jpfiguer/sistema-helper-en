@@ -1,19 +1,20 @@
 /**
- * Servidor de la sesión de práctica: orquesta el ciclo pregunta → respuesta → feedback.
+ * Servidor de la sesión de práctica: orquesta el ciclo de pregunta, respuesta y feedback.
  *
- * Una sesión es una máquina de estados chica y estrictamente secuencial:
+ * Una sesión de entrevista es una máquina de estados chica y estrictamente secuencial:
  *
- *   idle ──iniciar──► preguntando ──(termina el TTS)──► escuchando
- *                          ▲                                │
- *                          │                         (silencio o "listo")
- *                          │                                ▼
- *                          └──────(siguiente)──────── evaluando
+ *   idle ──iniciar──► preguntando ──(terminó de sonar)──► escuchando
+ *                          ▲                                   │
+ *                     (siguiente)                    (silencio o "listo")
+ *                          │                                   ▼
+ *                      esperando ◄──────────────────────── evaluando
  *
- * Por qué secuencial y no concurrente: el micrófono se abre RECIÉN cuando el entrevistador
- * terminó de hablar. Si se dejara abierto todo el tiempo, Deepgram transcribiría también la
- * voz del entrevistador saliendo por los parlantes y esas palabras se contarían como tuyas —
- * las métricas medirían una conversación en vez de tu habla. Es el bug que define la forma de
- * todo este archivo.
+ * La lectura usa sus propios estados (lectura:lista, lectura:sonando, lectura:corregido) y la
+ * misma escucha.
+ *
+ * Es secuencial porque el micrófono se abre recién cuando el audio del entrevistador terminó de
+ * sonar. Abierto todo el tiempo, Deepgram transcribiría también la voz que sale por los
+ * parlantes y esas palabras se contarían como tuyas.
  *
  * Es una herramienta local de un solo usuario: hay UNA sesión viva por proceso y no hay login.
  * Por eso escucha solo en 127.0.0.1 y el WebSocket acepta únicamente la página que sirve este
@@ -36,8 +37,7 @@ const { crearReproductor } = require('./audioPlayer');
 const ttsCache = require('./ttsCache');
 const say = require('./saySpeaker');
 
-// Proveedor de voz. `say` es el respaldo gratis de macOS, para cuando se acaban los
-// créditos: peor calidad, pero mejor que no poder practicar. Ver saySpeaker.js.
+// Proveedor de voz: Cartesia, o `say` de macOS con TTS_PROVIDER=say (ver saySpeaker.js).
 const USAR_SAY = say.elegido();
 const VOZ = USAR_SAY
   ? { sintetizar: say.sayStream, firma: say.firma }
@@ -54,11 +54,11 @@ const sesion = require('./sessionLog');
 const PORT = Number(process.env.PORT) || 3002;
 // Solo loopback: la app controla tu micrófono y no tiene por qué verse desde la red local.
 const HOST = '127.0.0.1';
-// Silencio tras tu última palabra para dar la respuesta por terminada. 3 s: abajo de eso una
-// pausa para pensar cortaba la respuesta; arriba, la sesión se siente lenta.
+// Silencio tras tu última palabra para dar la respuesta por terminada. Con menos de 3 s una
+// pausa para pensar corta la respuesta; con más, la sesión se siente lenta.
 const SILENCIO_FIN_MS = Number(process.env.SILENCIO_FIN_MS ?? 3000);
-// Leyendo un texto preparado las pausas son más largas que improvisando: se respira entre
-// frases y se busca el renglón siguiente. Con 3 s la respuesta se cortaba por la mitad.
+// Con texto esperado (lectura y apoyo) las pausas son más largas que improvisando: se respira
+// entre frases y se busca el renglón siguiente.
 const SILENCIO_FIN_GUIADO_MS = Number(process.env.SILENCIO_FIN_GUIADO_MS ?? 5000);
 
 const app = express();
@@ -130,13 +130,11 @@ function fraseActual() {
  * Sesión de entrevista. Con `guiada`, las preguntas salen del set que tiene respuesta
  * preparada y esa respuesta se manda a pantalla para leerla.
  *
- * Es el escalón intermedio entre leer y improvisar: la pregunta llega por voz y sin saber
- * cuál viene —eso es la parte de entrevista— pero hay qué decir, que es lo que evita el
- * bloqueo. Evaluamos las dos cosas: la pronunciación contra el texto esperado, y el inglés
- * y la entrega con el evaluador de siempre.
+ * Es el paso intermedio entre leer e improvisar: la pregunta llega por voz y sin saber cuál
+ * viene, pero la respuesta está en pantalla. Se evalúan las dos cosas: la pronunciación contra
+ * el texto esperado, y el inglés y la entrega con el evaluador de siempre.
  *
- * En guiada no hay repreguntas: no existe respuesta preparada para ellas, y mandarlo a
- * improvisar a mitad del ejercicio rompe justamente el andamio que lo hace servir.
+ * En guiada no hay repreguntas, porque no existe respuesta preparada para ellas.
  */
 function nuevaSesion(opts = {}) {
   const guiada = Boolean(opts.guiada);
@@ -335,8 +333,8 @@ function abrirMicrofono(ws) {
     if (!vigente()) return;
     if (S.tsPrimeraPalabra === null) S.tsPrimeraPalabra = Date.now();
     S.finales.push(text);
-    // Palabra por palabra con su confianza: es lo único que permite señalar cuál
-    // pronunciaste mal. En modo entrevista se acumula igual y no se usa.
+    // Palabra por palabra con su confianza: es lo que permite señalar cuál pronunciaste mal.
+    // En la entrevista sin apoyo se acumula igual y no se usa.
     if (Array.isArray(words) && words.length) S.palabras.push(...words);
     S.parcial = '';
     enviar(ws, 'parcialFinal', { texto: S.finales.join(' ') });
@@ -389,7 +387,7 @@ function rearmarSilencio(ws) {
     const cob = cobertura();
     if (cob !== null && cob < 0.6 && (S.prorrogas || 0) < 2) {
       S.prorrogas = (S.prorrogas || 0) + 1;
-      enviar(ws, 'aviso', { mensaje: `Te falta texto por leer — te doy ${Math.round(espera / 1000)} s más.` });
+      enviar(ws, 'aviso', { mensaje: `Te falta texto por leer. Te doy ${Math.round(espera / 1000)} s más.` });
       return rearmarSilencio(ws);
     }
     cerrarRespuesta(ws);
@@ -421,9 +419,7 @@ function mostrarFrase(ws) {
   if (!f) return finalizar(ws);
   enviar(ws, 'frase', {
     texto: f.texto,
-    // La respuesta entera, no solo la frase que toca: leyendo de a una se pierde de vista
-    // qué se está construyendo, y el ejercicio es fijar la respuesta completa, no recitar
-    // renglones sueltos.
+    // La respuesta entera, para leer cada frase en su contexto.
     frases: f.lectura.frases,
     pregunta: f.lectura.pregunta,
     ronda: f.lectura.ronda,
@@ -439,11 +435,8 @@ function mostrarFrase(ws) {
 /**
  * Cierra una frase leída: alinea lo esperado con lo oído y devuelve la corrección.
  *
- * Acá sí se corrige en el momento, al revés que en modo entrevista. Son ejercicios distintos:
- * la entrevista simula presión y por eso el feedback llega al final; la lectura construye
- * fluidez motora, y para eso la corrección tiene que llegar mientras la frase todavía está
- * en la boca. Se corrige por frase y no por palabra: interrumpir a media palabra rompe
- * justamente el ritmo que se está entrenando.
+ * En lectura la corrección llega al cerrar cada frase; en la entrevista, el feedback llega al
+ * final de la respuesta.
  */
 function cerrarFrase(ws) {
   if (!S || S.estado !== 'escuchando') return;
@@ -502,8 +495,8 @@ async function cerrarRespuesta(ws) {
     return estado(ws, 'esperando');
   }
 
-  // Descontamos del audio el silencio inicial: si tardaste 5 s en arrancar, esos 5 s no son
-  // parte de tu respuesta y contarlos hundiría las palabras por minuto artificialmente.
+  // Se descuenta el silencio inicial, medido con el reloj local hasta el primer resultado de
+  // Deepgram. El README («Cómo se mide la duración») explica qué queda dentro y qué no.
   const msHastaPrimera = S.tsPrimeraPalabra ? S.tsPrimeraPalabra - S.tsAbrioMic : null;
   const bytesSilencio = msHastaPrimera ? Math.round((msHastaPrimera / 1000) * 16000 * 2) : 0;
   const bytesHabla = Math.max(0, S.bytes - bytesSilencio);
@@ -530,7 +523,7 @@ async function cerrarRespuesta(ws) {
     });
     sesion.log('pronunciacion', { intento: S.intentos.length, esperado: S.apoyoActual, resumen: comp.resumen, problemas: comp.problemas });
 
-    // Repetir sin saber si mejoraste es repetición, no práctica.
+    // Desde el segundo intento, compara contra el anterior.
     if (previo) {
       const cmp = compararIntentos(previo, comp);
       enviar(ws, 'comparacion', { ...cmp, intento: S.intentos.length });
@@ -697,9 +690,9 @@ wss.on('connection', (ws) => {
         case 'decir': {
           // Con el micrófono abierto, o por abrirse, el audio terminaría en el transcript.
           if (S && SIN_AUDIO_EXTRA.has(S.estado)) break;
-          // Escuchar cómo se dice lo que falló, para repetirlo. Va por fragmento y no por
-          // palabra suelta: los errores que importan son de habla encadenada —"out to more"
-          // dicho rápido suena a "of the motor"— y una palabra aislada no entrena eso.
+          // Oír cómo se dice un fragmento que falló, para repetirlo. La UI manda la palabra con
+          // dos antes y dos después, porque muchos errores son de habla encadenada: "out to
+          // more" dicho rápido puede oírse como "of the motor".
           const t = String(msg.texto || '').trim().slice(0, 120);
           if (t) await hablar(ws, t);
           break;
@@ -724,9 +717,7 @@ wss.on('connection', (ws) => {
           break;
 
         case 'finalizar':
-          // Si hay una respuesta en el aire, cerrarla primero: terminar la sesión no puede
-          // significar tirar a la basura lo que acaba de decir. Pasó de verdad — leyó una
-          // respuesta entera y el resumen salió "sin respuestas registradas".
+          // Si hay una respuesta en curso, se cierra y se evalúa antes de terminar.
           if (S && S.estado === 'escuchando') await cerrarRespuesta(ws);
           if (S) finalizar(ws);
           break;

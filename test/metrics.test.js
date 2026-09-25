@@ -3,8 +3,7 @@
  *
  * Se testea lo que tiene una respuesta correcta: el conteo de muletillas, las palabras por
  * minuto derivadas de los bytes de audio, y el guard que rechaza los dispositivos de loopback.
- * Lo que juzga el LLM no se testea contra un valor esperado — no lo tiene — y fingir que sí
- * daría un test verde que no significa nada.
+ * Lo que juzga el LLM no tiene un valor esperado, así que no se testea contra uno.
  *
  *   npm test
  */
@@ -24,7 +23,7 @@ const { mensajeDeTurno, MAX_SEGUIMIENTOS } = require('../src/prompts/interviewer
 // ── métricas ──────────────────────────────────────────────────────────────────
 
 test('wpm sale de los bytes de audio, no del reloj', () => {
-  // 30 palabras en exactamente 15 s → 120 wpm
+  // 30 palabras en exactamente 15 s son 120 wpm
   const texto = Array.from({ length: 30 }, (_, i) => `word${i}`).join(' ');
   const m = medirRespuesta({ texto, bytesAudio: BYTES_POR_SEGUNDO * 15 });
   assert.equal(m.palabras, 30);
@@ -117,13 +116,13 @@ test('elegirSalida rechaza el loopback y deja pasar los parlantes', () => {
 
 test('reconoce la pregunta planificada aunque el modelo la reformule', () => {
   const planificada = 'Walk me through a data pipeline you built end to end. Where did the data come from and where did it land?';
-  const reformulada = 'Sure. Could you walk me through a data pipeline you built, end to end — where the data came from and where it landed?';
+  const reformulada = 'Sure. Could you walk me through a data pipeline you built, end to end, where the data came from and where it landed?';
   assert.equal(pareceMismaPregunta(reformulada, planificada), true);
 });
 
 test('una repregunta no se confunde con la pregunta planificada', () => {
   const planificada = 'How do you decide between batch and streaming for a given ingestion problem?';
-  const repregunta = 'You mentioned Kafka there — what was the alternative you ruled out, and why?';
+  const repregunta = 'You mentioned Kafka there. What was the alternative you ruled out, and why?';
   assert.equal(pareceMismaPregunta(repregunta, planificada), false);
 });
 

@@ -29,7 +29,7 @@ require('dotenv').config({ quiet: true });
 
 const fs = require('fs');
 const path = require('path');
-const { promediar } = require('../src/metrics');
+const { promediar, UMBRALES } = require('../src/metrics');
 
 const DIR = process.env.SESSION_DIR || path.join(__dirname, '..', 'sesiones');
 const NEG = '\x1b[1m'; const GRIS = '\x1b[90m'; const FIN = '\x1b[0m';
@@ -91,10 +91,11 @@ function pad(s, n, der = false) {
   return der ? t.padStart(n) : t.padEnd(n);
 }
 
-/** Para wpm no existe "más es mejor": la banda cómoda es 130–160 y se juzga por distancia. */
+/** Para wpm no existe "más es mejor": se juzga por la distancia a la banda cómoda. */
 function flechaWpm(a, b) {
   if (a == null || b == null) return '';
-  const dist = (x) => (x < 130 ? 130 - x : x > 160 ? x - 160 : 0);
+  const [min, max] = UMBRALES.wpmComodo;
+  const dist = (x) => (x < min ? min - x : x > max ? x - max : 0);
   const d = dist(a) - dist(b);
   if (Math.abs(d) < 4) return `${GRIS}=${FIN}`;
   return d > 0 ? `${VERDE}▲${FIN}` : `${ROJO}▼${FIN}`;
@@ -156,8 +157,8 @@ function comparar(sesiones) {
 
   console.log(`\n${NEG}Primeras ${k} vs últimas ${k}${FIN}\n`);
   const fmt = (a, b, f, unidad = '') => `${a == null ? '—' : a.toFixed(unidad === '%' ? 1 : unidad === 'n' ? 1 : 0)}${unidad === '%' ? '%' : ''} → ${b == null ? '—' : b.toFixed(unidad === '%' ? 1 : unidad === 'n' ? 1 : 0)}${unidad === '%' ? '%' : ''}  ${f}`;
-  console.log(`  ${pad('ritmo (wpm)', 18)}${fmt(wpmA, wpmB, flechaWpm(wpmA, wpmB))}   ${GRIS}cómodo: 130–160${FIN}`);
-  console.log(`  ${pad('muletillas', 18)}${fmt(mulA == null ? null : mulA * 100, mulB == null ? null : mulB * 100, flechaMenosEsMejor(mulA, mulB, 0.005), '%')}   ${GRIS}objetivo: bajo 4%${FIN}`);
+  console.log(`  ${pad('ritmo (wpm)', 18)}${fmt(wpmA, wpmB, flechaWpm(wpmA, wpmB))}   ${GRIS}cómodo: ${UMBRALES.wpmComodo.join('–')}${FIN}`);
+  console.log(`  ${pad('muletillas', 18)}${fmt(mulA == null ? null : mulA * 100, mulB == null ? null : mulB * 100, flechaMenosEsMejor(mulA, mulB, 0.005), '%')}   ${GRIS}objetivo: bajo ${Math.round(UMBRALES.rellenosMedio * 100)}%${FIN}`);
   console.log(`  ${pad('léxico', 18)}${fmt(lexA, lexB, flechaMasEsMejor(lexA, lexB, 0.01), 'n')}   ${GRIS}único/total, sube al dejar de repetirte${FIN}`);
   console.log(`  ${pad('nota de inglés', 18)}${fmt(ingA, ingB, flechaMasEsMejor(ingA, ingB, 0.2), 'n')}   ${GRIS}juicio del modelo, no aritmética${FIN}`);
 

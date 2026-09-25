@@ -32,5 +32,5 @@
     "ws": "^8.21.0"
   },
   "_nota_dependencias": "Deepgram y Cartesia se hablan por WebSocket crudo con 'ws', sin sus SDK: el protocolo es estable y los SDK cambian de forma seguido. El I/O de audio es ffmpeg (binario del sistema, no npm) para no depender de un módulo nativo que compile.",
-  "_nota_sistema": "Requiere ffmpeg en el PATH: brew install ffmpeg. No requiere ningún dispositivo de audio virtual."
+  "_nota_sistema": "Requiere macOS y ffmpeg (brew install ffmpeg), en el PATH o en FFMPEG_PATH. No requiere ningún dispositivo de audio virtual."
 }

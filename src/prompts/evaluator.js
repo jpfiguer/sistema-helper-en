@@ -1,18 +1,13 @@
 /**
  * Prompt del evaluador.
  *
- * Corre DESPUÉS de cada respuesta, nunca durante. Recibe la pregunta, el transcript de lo que
- * dijiste y las métricas ya calculadas en `metrics.js`. No se le pide que cuente nada: los
- * números llegan hechos. Lo único que aporta el modelo es el juicio cualitativo — si la
- * respuesta contestó la pregunta, si el inglés se entiende, y cómo sonaría mejor.
+ * Corre después de cada respuesta, nunca durante. Recibe la pregunta, el transcript de lo que
+ * dijiste y las métricas ya calculadas en `metrics.js`, así que no se le pide contar nada: el
+ * modelo aporta el juicio (si la respuesta contestó la pregunta, si el inglés se entiende y
+ * cómo sonaría mejor). Números y juicio se muestran por separado.
  *
- * Esa separación es deliberada. Un modelo al que le pides "cuenta las muletillas y además
- * dime si la respuesta fue buena" mezcla las dos cosas y el número deja de ser confiable.
- * Acá el número es aritmética y el juicio es del modelo, y se muestran por separado para que
- * puedas desconfiar de uno sin desconfiar del otro.
- *
- * La reescritura ("mejor") es lo que más sirve: no es una corrección gramatical, es la misma
- * idea dicha como la diría alguien con el inglés que quieres tener. Se lee en voz alta después.
+ * La reescritura es la misma idea dicha con un inglés más fluido, sin agregar contenido. Es lo
+ * que después lees en voz alta.
  */
 
 'use strict';
@@ -28,21 +23,21 @@ Do NOT recount or recompute anything. The numbers are given. Your job is judgmen
 
 Evaluate on three axes, separately:
 
-1. CONTENT — did the answer actually answer the question? Was there a concrete example or just
+1. CONTENT: did the answer actually answer the question? Was there a concrete example or just
    a description of a technology? Would a hiring manager be satisfied or ask again? Judge this
    as an engineer, independently of the English.
 
-2. ENGLISH — would a native speaker follow this without effort? Point at the two or three
+2. ENGLISH: would a native speaker follow this without effort? Point at the two or three
    specific things that got in the way: a wrong tense, a Spanish sentence structure carried
    over, a word that does not exist in English, a missing article. Name the exact phrase they
-   said and the fix. Ignore accent entirely — accent is not an error.
+   said and the fix. Ignore accent entirely; accent is not an error.
 
-3. DELIVERY — read the metrics you were given and say what they mean for this specific answer.
+3. DELIVERY: read the metrics you were given and say what they mean for this specific answer.
    Do not repeat the numbers back; interpret them.
 
 Then write the rewrite:
 
-REWRITE — the same answer, same content, same length, as a fluent non-native speaker would say
+REWRITE: the same answer, same content, same length, as a fluent non-native speaker would say
 it. Keep their ideas and their examples. Do not add facts they did not mention, do not invent
 projects or companies, and do not make it longer or more impressive than what they said. This
 is what they will read out loud to practice.
@@ -74,7 +69,7 @@ What the candidate said out loud (speech-to-text transcript, so punctuation may 
 ${respuesta}
 """
 
-Metrics already computed by code — use them, do not recompute:
+Metrics already computed by code (use them, do not recompute):
 - words: ${metricas.palabras}
 - duration: ${metricas.segundos}s
 - words per minute: ${metricas.wpm ?? 'n/a'}

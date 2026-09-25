@@ -2,11 +2,10 @@
 /**
  * Chequeo previo: verifica que todo lo que la sesión necesita esté en su lugar.
  *
- * Corre antes de practicar, no antes de programar. Cada chequeo prueba la cosa real —
- * lanza ffmpeg, abre el WebSocket contra Deepgram, le pide una frase a Groq, sintetiza un
- * segundo de audio en Cartesia — en vez de mirar si la variable de entorno está definida.
- * Una clave presente pero inválida es el caso que más tiempo hace perder, y es exactamente
- * el que un chequeo de `typeof` no encuentra.
+ * Cada chequeo prueba la cosa real (lanza ffmpeg, graba un segundo del micrófono, abre el
+ * WebSocket contra Deepgram, le pide una palabra a Groq y sintetiza una frase con Cartesia o con
+ * `say`) en vez de mirar si la variable de entorno está definida. Así aparece una clave presente
+ * pero inválida, que mirar la variable no detecta.
  *
  *   npm run check
  *
@@ -40,7 +39,9 @@ function chequearFfmpeg() {
   return new Promise((resolve) => {
     execFile(FFMPEG, ['-version'], { timeout: 8000 }, (err, stdout) => {
       if (err) {
-        mal('ffmpeg', `No está en el PATH. Instálalo con: brew install ffmpeg${process.env.FFMPEG_PATH ? `  (FFMPEG_PATH=${process.env.FFMPEG_PATH})` : ''}`);
+        mal('ffmpeg', process.env.FFMPEG_PATH
+          ? `No se pudo ejecutar FFMPEG_PATH=${process.env.FFMPEG_PATH}`
+          : 'No está en el PATH. Instálalo con: brew install ffmpeg');
       } else {
         bien('ffmpeg', (stdout.split('\n')[0] || '').replace('ffmpeg version ', 'v').slice(0, 40));
       }
@@ -99,12 +100,12 @@ async function chequearMicrofono() {
     return;
   }
 
-  // Ver el dispositivo no es lo mismo que recibir audio. Cuando macOS deniega el permiso de
-  // micrófono NO devuelve un error: entrega un stream de ceros, así que ffmpeg abre bien y
-  // graba silencio digital. Este chequeo daba verde mientras no llegaba absolutamente nada.
+  // Cuando macOS deniega el permiso de micrófono no devuelve un error: entrega un stream de
+  // ceros, y ffmpeg graba silencio digital sin quejarse. Por eso se graba un segundo y se mira
+  // el pico.
   const nivel = await medirNivel(elegido.index);
   if (nivel === null) {
-    mal('micrófono', `[${elegido.index}] ${elegido.name} — no se pudo grabar de prueba`);
+    mal('micrófono', `[${elegido.index}] ${elegido.name}: no se pudo grabar de prueba`);
     return;
   }
   if (nivel.pico < UMBRAL_SILENCIO) {
@@ -112,7 +113,7 @@ async function chequearMicrofono() {
       `[${elegido.index}] ${elegido.name} abre pero llega SILENCIO (pico ${nivel.pico}/32768). `
       + 'Casi siempre es permiso denegado: macOS entrega ceros en vez de dar error. '
       + 'Ajustes > Privacidad y seguridad > Micrófono, habilita la app desde la que corres esto, '
-      + 'y reiníciala por completo — el permiso no se toma en caliente.');
+      + 'y reiníciala por completo: el permiso no se toma en caliente.');
     return;
   }
   bien('micrófono', `[${elegido.index}] ${elegido.name} · señal ok (pico ${nivel.pico})`);
@@ -141,7 +142,7 @@ function chequearDeepgram() {
     });
     ws.on('unexpected-response', (_r, res) => {
       clearTimeout(t);
-      mal('Deepgram', `HTTP ${res.statusCode}${res.statusCode === 401 ? ' — la clave es inválida' : ''}`);
+      mal('Deepgram', `HTTP ${res.statusCode}${res.statusCode === 401 ? ': la clave es inválida' : ''}`);
       resolve();
     });
     ws.on('error', (e) => { clearTimeout(t); mal('Deepgram', e.message); resolve(); });
@@ -173,7 +174,7 @@ async function chequearGroq() {
 
 async function chequearCartesia() {
   if (!process.env.CARTESIA_API_KEY) { mal('Cartesia', 'Falta CARTESIA_API_KEY en .env'); return; }
-  if (!process.env.CARTESIA_VOICE_ID) { mal('Cartesia', 'Falta CARTESIA_VOICE_ID en .env — elige una voz en play.cartesia.ai'); return; }
+  if (!process.env.CARTESIA_VOICE_ID) { mal('Cartesia', 'Falta CARTESIA_VOICE_ID en .env. Elige una voz en play.cartesia.ai'); return; }
 
   try {
     const { textToSpeechStream } = require('../src/cartesiaSpeaker');
@@ -214,7 +215,7 @@ function chequearSalida() {
 }
 
 (async () => {
-  console.log(`\n${NEG}sistema-helper-en — chequeo previo${FIN}\n`);
+  console.log(`\n${NEG}sistema-helper-en: chequeo previo${FIN}\n`);
 
   await chequearFfmpeg();
   await chequearMicrofono();

@@ -1,32 +1,32 @@
 /**
- * Métricas de una respuesta hablada — calculadas con aritmética, no con el LLM.
+ * Métricas de una respuesta hablada, calculadas con aritmética y no con el LLM.
  *
- * Por qué no se las pedimos al modelo: contar muletillas y calcular palabras por minuto son
- * operaciones determinísticas. Un LLM al que le pides "cuenta cuántas veces dijo 'um'" inventa
- * el número, y el error no es aleatorio: tiende a redondear hacia lo que suena razonable. Si
- * la métrica que usas para medir tu progreso alucina, el progreso que ves es ruido.
+ * Contar muletillas y calcular palabras por minuto es determinístico: el código da el mismo
+ * número cada vez. El evaluador (prompts/evaluator.js) las recibe ya calculadas.
  *
- * La división es la misma que se usa en evaluación de RAG: la parte objetiva se mide, la parte
- * subjetiva la juzga el modelo. Acá lo medible vive en este archivo y lo opinable en
- * `evaluator.js`. Cuando las dos coinciden, el feedback es creíble.
- *
- * Lo que estas métricas NO dicen (escrito acá para que nadie lo olvide leyendo el número):
- * - WPM alto no es mejor. Un hispanohablante nervioso acelera; 190 wpm en inglés suele ser
- *   atropellado, no fluido. La banda cómoda para una entrevista técnica es 130–160.
- * - La densidad de muletillas todavía cuenta algún uso legítimo: "like" y "actually" suman
- *   aunque estén bien usadas. Los casos peores ("so", "well", "right") ya están acotados a la
- *   apertura de la respuesta, pero el número sigue sirviendo para ver la TENDENCIA entre
- *   sesiones, no para juzgar una respuesta suelta.
- * - El tiempo hasta la primera palabra mide duda, pero también mide que estés pensando. Tres
- *   segundos antes de una respuesta de arquitectura está bien; tres antes de "where are you
- *   from" no.
+ * Qué no dicen estos números, y cómo se mide la duración: README, «Qué mide, y qué no».
  */
 
 'use strict';
 
-// PCM 16-bit mono a 16 kHz = 32.000 bytes por segundo. Es la constante que deja medir
-// duración real desde los bytes capturados, sin confiar en timestamps de red.
+// PCM 16-bit mono a 16 kHz = 32.000 bytes por segundo. Convierte los bytes capturados en segundos.
 const BYTES_POR_SEGUNDO = 16000 * 2;
+
+/**
+ * Umbrales de las banderas: referencias para una entrevista técnica hablada, no reglas
+ * universales. scripts/report.js usa los mismos valores.
+ */
+const UMBRALES = {
+  wpmComodo: [130, 160],   // banda de referencia; el reporte mide la distancia a ella
+  wpmRapido: 175,
+  wpmLento: 100,
+  segundosMinLento: 8,     // el ritmo lento solo se marca en respuestas más largas que esto
+  rellenosAlto: 0.08,
+  rellenosMedio: 0.04,
+  palabrasCorta: 25,
+  palabrasLarga: 220,
+  msArranqueLento: 6000,
+};
 
 /**
  * Muletillas y rellenos típicos de un hispanohablante hablando inglés.
@@ -38,8 +38,8 @@ const RELLENOS_FRASE = [
 ];
 
 /**
- * Cuentan en cualquier posición. Son o bien sonidos sin contenido ("um"), o bien palabras
- * cuyo uso legítimo es tan raro en habla técnica que el falso positivo no molesta ("literally").
+ * Cuentan en cualquier posición: sonidos sin contenido ("um") y palabras que en habla técnica
+ * casi siempre son relleno ("literally"). "like" y "actually" dan algún falso positivo.
  */
 const RELLENOS_PALABRA = [
   'um', 'uh', 'ehm', 'eh', 'mmm', 'hmm', 'ah', 'er',
@@ -47,17 +47,13 @@ const RELLENOS_PALABRA = [
 ];
 
 /**
- * Cuentan SOLO al abrir la respuesta.
- *
- * Esta separación salió de un test que fallaba. Estaban en la lista de arriba y se contaban
- * siempre, lo que inflaba el número con usos perfectamente correctos: "it works **well**",
- * "the **right** answer", "**so** we migrated it" — ahí "so" es una conjunción, no una
- * muletilla. Arrancar la respuesta con "So…" o "Well…" sí es el tic que quieres ver bajar.
- * Sin esta distinción la métrica medía vocabulario en vez de fluidez.
+ * Cuentan SOLO al abrir la respuesta. En medio de una frase suelen ser uso normal ("it works
+ * well", "the right answer", "so we migrated it"); abrir con "So…" o "Well…" es el tic que se
+ * quiere medir.
  */
 const RELLENOS_APERTURA = ['so', 'well', 'okay', 'ok', 'right', 'anyway', 'yeah', 'yes'];
 
-/** Palabras en español que se cuelan cuando falta vocabulario — señal útil, no falta grave. */
+/** Palabras en español que se cuelan cuando falta vocabulario. */
 const FUGAS_ES = [
   'entonces', 'osea', 'o sea', 'digamos', 'este', 'bueno', 'pues', 'claro',
   'verdad', 'no sé', 'como que', 'por ejemplo',
@@ -116,9 +112,9 @@ function contarRellenos(texto) {
  * Calcula las métricas de una respuesta.
  *
  * @param {object} p
- * @param {string} p.texto            transcript de lo que dijo el usuario
- * @param {number} p.bytesAudio       bytes de PCM capturados mientras hablaba
- * @param {number} [p.msHastaPrimera] ms entre el fin de la pregunta y su primera palabra
+ * @param {string} p.texto            transcript de la respuesta
+ * @param {number} p.bytesAudio       bytes de PCM de la respuesta, ya sin el silencio inicial
+ * @param {number} [p.msHastaPrimera] ms desde que se abrió el micrófono hasta el primer resultado de Deepgram
  * @returns {object} métricas + banderas, todas derivadas por aritmética
  */
 function medirRespuesta({ texto, bytesAudio = 0, msHastaPrimera = null }) {
@@ -147,27 +143,27 @@ function medirRespuesta({ texto, bytesAudio = 0, msHastaPrimera = null }) {
   };
 }
 
-/**
- * Traduce los números a observaciones accionables. Los umbrales son referencias de entrevista
- * técnica hablada, no reglas universales — están acá arriba y se cambian en un lugar.
- */
+/** Traduce los números a observaciones accionables, con los umbrales de UMBRALES. */
 function banderas({ wpm, densidad, nPalabras, segundos, msHastaPrimera }) {
+  const U = UMBRALES;
+  const [min, max] = U.wpmComodo;
+  const pct = (densidad * 100).toFixed(1);
   const out = [];
 
   if (wpm !== null) {
-    if (wpm > 175) out.push({ nivel: 'aviso', clave: 'ritmo_rapido', texto: `${wpm} wpm: vas acelerado. En inglés bajo presión eso se oye como nervios y se te entiende peor. Apunta a 130–160.` });
-    else if (wpm < 100 && segundos > 8) out.push({ nivel: 'aviso', clave: 'ritmo_lento', texto: `${wpm} wpm: muy pausado. Suele ser que estás traduciendo mentalmente en vez de pensar en inglés.` });
+    if (wpm > U.wpmRapido) out.push({ nivel: 'aviso', clave: 'ritmo_rapido', texto: `${wpm} wpm: vas acelerado. En inglés bajo presión eso se oye como nervios y se te entiende peor. Apunta a ${min}–${max}.` });
+    else if (wpm < U.wpmLento && segundos > U.segundosMinLento) out.push({ nivel: 'aviso', clave: 'ritmo_lento', texto: `${wpm} wpm: muy pausado. Suele ser que estás traduciendo mentalmente en vez de pensar en inglés.` });
     else out.push({ nivel: 'ok', clave: 'ritmo', texto: `${wpm} wpm: ritmo de conversación normal.` });
   }
 
-  if (densidad > 0.08) out.push({ nivel: 'alerta', clave: 'rellenos_altos', texto: `${(densidad * 100).toFixed(1)}% de muletillas. Arriba de 8% el entrevistador lo nota. Una pausa en silencio se oye mejor que un "um".` });
-  else if (densidad > 0.04) out.push({ nivel: 'aviso', clave: 'rellenos_medios', texto: `${(densidad * 100).toFixed(1)}% de muletillas: aceptable, pero hay margen.` });
-  else out.push({ nivel: 'ok', clave: 'rellenos', texto: `${(densidad * 100).toFixed(1)}% de muletillas: limpio.` });
+  if (densidad > U.rellenosAlto) out.push({ nivel: 'alerta', clave: 'rellenos_altos', texto: `${pct}% de muletillas, sobre el ${Math.round(U.rellenosAlto * 100)}%. Una pausa en silencio se oye mejor que un "um".` });
+  else if (densidad > U.rellenosMedio) out.push({ nivel: 'aviso', clave: 'rellenos_medios', texto: `${pct}% de muletillas: aceptable, pero hay margen.` });
+  else out.push({ nivel: 'ok', clave: 'rellenos', texto: `${pct}% de muletillas: limpio.` });
 
-  if (nPalabras < 25 && segundos > 0) out.push({ nivel: 'aviso', clave: 'muy_corta', texto: 'Respuesta muy corta. En una entrevista técnica una respuesta de 30–45 s con un ejemplo concreto rinde más que una frase.' });
-  if (nPalabras > 220) out.push({ nivel: 'aviso', clave: 'muy_larga', texto: 'Respuesta larga. Pasando el minuto y medio el entrevistador pierde el hilo y no puede repreguntar.' });
+  if (nPalabras < U.palabrasCorta && segundos > 0) out.push({ nivel: 'aviso', clave: 'muy_corta', texto: 'Respuesta muy corta. En una entrevista técnica rinde más una respuesta con un ejemplo concreto que una sola frase.' });
+  if (nPalabras > U.palabrasLarga) out.push({ nivel: 'aviso', clave: 'muy_larga', texto: 'Respuesta larga. Cuesta seguirla y le deja poco espacio al entrevistador para repreguntar.' });
 
-  if (msHastaPrimera !== null && msHastaPrimera > 6000) {
+  if (msHastaPrimera !== null && msHastaPrimera > U.msArranqueLento) {
     out.push({ nivel: 'aviso', clave: 'arranque_lento', texto: `${(msHastaPrimera / 1000).toFixed(1)} s antes de empezar. Está bien pensar, pero decir "let me think about that for a second" en voz alta compra el tiempo sin que parezca que te trabaste.` });
   }
 
@@ -200,6 +196,7 @@ module.exports = {
   contarRellenos,
   tokenizar,
   BYTES_POR_SEGUNDO,
+  UMBRALES,
   RELLENOS_PALABRA,
   RELLENOS_APERTURA,
   RELLENOS_FRASE,

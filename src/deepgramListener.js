@@ -4,11 +4,9 @@
  * Conexión WebSocket cruda a wss://api.deepgram.com/v1/listen (sin SDK, para no acoplarnos a
  * versiones). Transcribe tu inglés hablado desde el PCM 16k mono que entrega audioCapture.
  *
- * Nota sobre el modelo: nova-3 en en-US transcribe bien a hispanohablantes, pero "arregla"
- * parte de lo que dices — completa artículos y corrige concordancias. Para medir fluidez eso
- * es un sesgo optimista conocido: el transcript se ve mejor que el audio. Las muletillas sí
- * sobreviven, que es lo que más importa acá. Está anotado porque un día alguien se va a
- * preguntar por qué el feedback gramatical parece indulgente.
+ * Nota sobre el modelo: nova-3 "arregla" parte de lo que dices: completa artículos y corrige
+ * concordancias. El transcript puede verse mejor que el audio, y por eso el feedback gramatical
+ * tiende a ser indulgente.
  *
  * Eventos (EventEmitter):
  *   'open'                       conectado y listo para recibir audio
@@ -32,14 +30,11 @@ const DEFAULTS = {
   sampleRate: 16000,
   channels: 1,
   smartFormat: true,
-  // ms de silencio para cerrar un final. Sube a 1200 por defecto acá: al practicar haces
-  // pausas más largas que un nativo y con 800 se te cortaba la respuesta a la mitad, lo que
-  // rompía el conteo de palabras por respuesta.
-  // (Por qué no un valor bajo:) con 300 una pausa normal en
-  // medio de una frase la partía en pedazos: medido, "Well, are you ready for the interview?"
-  // salía como 'Well,' / 'are you ready?' / 'For the interview?'. Al cerrar cada segmento
-  // Deepgram pierde el contexto de la oración y ahí aparecen los errores ("are you ready" →
-  // "Ray, for the"). Con 800 la misma frase llega entera en un solo final.
+  // ms de silencio para cerrar un final. Al practicar se hacen pausas más largas que un
+  // nativo, y con valores bajos una pausa a mitad de frase la parte en segmentos: con 300,
+  // "Well, are you ready for the interview?" llegó en tres. Cada segmento se transcribe sin el
+  // contexto del resto de la oración, y ahí aparecen errores ("are you ready" se oyó como
+  // "Ray, for the").
   endpointing: Number(process.env.DEEPGRAM_ENDPOINTING ?? 1200),
   interimResults: true,
   vadEvents: true,
@@ -161,9 +156,8 @@ class DeepgramListener extends EventEmitter {
         const payload = {
           text,
           confidence: alt.confidence ?? null,
-          // Palabra por palabra, con confianza y tiempos. Antes se descartaba y era lo único
-          // con lo que se puede dar feedback de pronunciación: la confianza de la frase
-          // completa promedia y esconde justo la palabra que te costó. Ver alignment.js.
+          // Palabra por palabra, con confianza y tiempos: la confianza de la frase completa
+          // promedia y esconde justo la palabra que te costó. Ver alignment.js.
           words: Array.isArray(alt.words)
             ? alt.words.map((w) => ({
                 word: w.word,
@@ -187,7 +181,7 @@ class DeepgramListener extends EventEmitter {
     }
   }
 
-  /** Envía un chunk de PCM. No-op si el socket aún no está abierto (se descartan ms iniciales). */
+  /** Envía un chunk de PCM. Si el socket todavía no abrió, el chunk se descarta. */
   sendAudio(chunk) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try { this.ws.send(chunk); } catch (err) { this.emit('error', err); }

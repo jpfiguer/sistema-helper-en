@@ -3,7 +3,7 @@
  *
  * Igual que en metrics.test.js: se testea lo que tiene respuesta correcta. Que una palabra
  * mal pronunciada se detecte es determinístico dado el transcript; si Deepgram la oyó bien
- * o mal no lo es, y eso no se finge acá.
+ * o mal no lo es, y eso no se testea acá.
  *
  *   npm test
  */

@@ -97,6 +97,92 @@
               background:var(--alerta-suave);color:var(--alerta)}
   .pie{margin-top:34px;padding-top:14px;border-top:1px solid var(--linea);
        font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--tinta-3)}
+
+  /* ── modo lectura ───────────────────────────────────────────────────────── */
+
+  /* `.barra` es display:flex, y eso le gana a la regla por defecto de [hidden]. Con
+     !important, hidden oculta cualquier elemento, tenga el display que tenga. */
+  [hidden]{display:none!important}
+
+  .modos{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:14px 0 10px}
+  .tab{font:inherit;font-size:13px;padding:6px 14px;cursor:pointer;
+       border:1px solid currentColor;background:transparent;opacity:.55}
+  .tab[aria-pressed=true]{opacity:1;font-weight:600}
+  .modoNota{font-size:12.5px;opacity:.6;margin-left:4px}
+
+  /* El apoyo: la respuesta preparada, para leerla mientras suena la pregunta. */
+  .apoyo{margin-top:14px;padding:13px 16px;border-left:3px solid currentColor;
+         background:rgba(128,128,128,.07);font-size:19px;line-height:1.55}
+  .apoyo::before{content:'LEE ESTO';display:block;font-family:var(--mono);font-size:10px;
+                 letter-spacing:.12em;opacity:.55;margin-bottom:7px}
+
+  /* Palabras marcadas: clicables para oír cómo se dicen, en su fragmento. */
+  .lecCorr .palabra[data-i]{cursor:pointer}
+  .lecCorr .palabra[data-i]:hover{
+    outline:2px solid currentColor; outline-offset:1px}
+
+  .drill{margin-top:16px;padding-top:14px;border-top:1px solid rgba(128,128,128,.25)}
+  .drill h4{margin:0 0 4px;font-size:13px;font-family:var(--mono);text-transform:uppercase;
+            letter-spacing:.07em;opacity:.6}
+  .drill .pista{font-size:12.5px;opacity:.6;margin:0 0 11px}
+  .drill ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+  .drill li{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;
+            padding:9px 11px;background:rgba(128,128,128,.07);border-radius:6px}
+  .drill button{font:500 12.5px var(--sans);padding:6px 12px;white-space:nowrap}
+  .drill .frag{font-size:16px;line-height:1.4}
+  .drill .frag b{color:var(--acento)}
+  .drill .mal{font-family:var(--mono);font-size:12px;opacity:.6;display:block;margin-top:3px}
+
+  /* Comparación entre intentos. El veredicto mira las palabras, no el porcentaje. */
+  .cmp{margin-top:14px;padding-top:13px;border-top:1px solid rgba(128,128,128,.25)}
+  .cmp .vd{font-size:17px;font-weight:600;margin:0 0 9px}
+  .cmp .vd.mejor{color:#3FA37F}
+  .cmp .vd.peor{color:#C86A4E}
+  .cmp .fila{font-size:14px;margin:0 0 6px;line-height:1.5}
+  .cmp .fila b{font-weight:600}
+  .cmp .pal{font-family:var(--mono);font-size:13px;padding:1px 6px;margin-right:4px;
+            border-radius:3px;background:rgba(128,128,128,.14)}
+  .cmp .pal.ok{color:#3FA37F}
+  .cmp .pal.mal{color:#C86A4E}
+
+  .lecMeta{font-size:12px;opacity:.6;margin:0 0 9px;letter-spacing:.03em}
+
+  /* La respuesta entera a la vista. La frase que toca va grande y a foco; las hechas
+     quedan tenues arriba y las que vienen, tenues abajo. */
+  .lecTexto{display:flex;flex-direction:column;gap:5px}
+  .lecFrase{font-size:16px;line-height:1.5;margin:0;opacity:.34;transition:opacity .2s}
+  .lecFrase.hecha{opacity:.34}
+  .lecFrase.hecha::before{content:'✓ ';opacity:.8}
+  .lecFrase.actual{font-size:24px;line-height:1.45;font-weight:500;opacity:1;
+                   padding:9px 0 9px 13px;border-left:3px solid currentColor;margin:5px 0}
+  .lecOido{font-size:13.5px;opacity:.65;margin:11px 0 0;font-style:italic}
+  .lecCorr{font-size:24px;line-height:1.55;margin:5px 0;padding:9px 0 9px 13px;
+           border-left:3px solid currentColor}
+  .lecCorr .palabra{display:inline-block;padding:1px 3px;margin:0 1px;border-radius:3px}
+
+  /* Además del color, cada problema tiene su marca: subrayado punteado (dudosa), ondulado
+     (cambiada), tachado (omitida) y cursiva (agregada). */
+  .lecCorr .palabra.dudosa{background:#F6E7C8;color:#6B4A0B;text-decoration:underline dotted}
+  .lecCorr .palabra.cambiada{background:#F3D6CF;color:#7A2A15;text-decoration:underline wavy}
+  .lecCorr .palabra.omitida{background:#E6E3DC;color:#6A655C;text-decoration:line-through}
+  .lecCorr .palabra.agregada{opacity:.45;font-style:italic}
+  .lecCorr .palabra.sin-evaluar{opacity:.75}
+  .lecCorr .oida{font-size:14px;opacity:.75;margin-left:3px}
+
+  .lecTabla{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  .lecTabla th{text-align:left;font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.55;padding:5px 8px 5px 0;font-weight:600}
+  .lecTabla td{padding:6px 8px 6px 0;border-top:1px solid currentColor;border-color:rgba(128,128,128,.22)}
+  .lecTabla .pal{font-weight:600}
+  .lecTabla .como{opacity:.65;font-style:italic}
+
+  @media (prefers-color-scheme:dark){
+    .lecCorr .palabra.dudosa{background:#3A2E12;color:#E5C57C}
+    .lecCorr .palabra.cambiada{background:#3B1D15;color:#E8A08A}
+    .lecCorr .palabra.omitida{background:#26241F;color:#8A857B}
+  }
+  @media (max-width:640px){ .lecFrase,.lecCorr{font-size:20px} }
+
+  /* Con el micrófono abierto, las palabras marcadas no se pueden oír. */
   body.microfono [data-i]{pointer-events:none}
 </style>
 </head>
@@ -152,95 +238,6 @@
     </div>
   </section>
 
-  <style>
-    /* ── modo lectura ───────────────────────────────────────────────────────── */
-
-    /* `.barra` es display:flex, que le gana a la regla por defecto de [hidden] y dejaba las
-       dos barras visibles al cambiar de modo. Con !important, `hidden` vuelve a significar
-       oculto para cualquier elemento, tenga el display que tenga. */
-    [hidden]{display:none!important}
-
-    .modos{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:14px 0 10px}
-    .tab{font:inherit;font-size:13px;padding:6px 14px;cursor:pointer;
-         border:1px solid currentColor;background:transparent;opacity:.55}
-    .tab[aria-pressed=true]{opacity:1;font-weight:600}
-    .modoNota{font-size:12.5px;opacity:.6;margin-left:4px}
-
-    /* El apoyo: la respuesta preparada, para leerla mientras suena la pregunta. */
-    .apoyo{margin-top:14px;padding:13px 16px;border-left:3px solid currentColor;
-           background:rgba(128,128,128,.07);font-size:19px;line-height:1.55}
-    .apoyo::before{content:'LEE ESTO';display:block;font-family:var(--mono);font-size:10px;
-                   letter-spacing:.12em;opacity:.55;margin-bottom:7px}
-
-    /* Palabras marcadas: clicables para oír cómo se dicen, en su fragmento. */
-    .lecCorr w.cambiada, .lecCorr w.omitida, .lecCorr w.dudosa{cursor:pointer}
-    .lecCorr w.cambiada:hover, .lecCorr w.omitida:hover, .lecCorr w.dudosa:hover{
-      outline:2px solid currentColor; outline-offset:1px}
-
-    .drill{margin-top:16px;padding-top:14px;border-top:1px solid rgba(128,128,128,.25)}
-    .drill h4{margin:0 0 4px;font-size:13px;font-family:var(--mono);text-transform:uppercase;
-              letter-spacing:.07em;opacity:.6}
-    .drill .pista{font-size:12.5px;opacity:.6;margin:0 0 11px}
-    .drill ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
-    .drill li{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;
-              padding:9px 11px;background:rgba(128,128,128,.07);border-radius:6px}
-    .drill button{font:500 12.5px var(--sans);padding:6px 12px;white-space:nowrap}
-    .drill .frag{font-size:16px;line-height:1.4}
-    .drill .frag b{color:var(--acento)}
-    .drill .mal{font-family:var(--mono);font-size:12px;opacity:.6;display:block;margin-top:3px}
-
-    /* Comparación entre intentos. El veredicto mira las palabras, no el porcentaje. */
-    .cmp{margin-top:14px;padding-top:13px;border-top:1px solid rgba(128,128,128,.25)}
-    .cmp .vd{font-size:17px;font-weight:600;margin:0 0 9px}
-    .cmp .vd.mejor{color:#3FA37F}
-    .cmp .vd.peor{color:#C86A4E}
-    .cmp .fila{font-size:14px;margin:0 0 6px;line-height:1.5}
-    .cmp .fila b{font-weight:600}
-    .cmp .pal{font-family:var(--mono);font-size:13px;padding:1px 6px;margin-right:4px;
-              border-radius:3px;background:rgba(128,128,128,.14)}
-    .cmp .pal.ok{color:#3FA37F}
-    .cmp .pal.mal{color:#C86A4E}
-
-    .lecMeta{font-size:12px;opacity:.6;margin:0 0 9px;letter-spacing:.03em}
-
-    /* La respuesta entera a la vista. La frase que toca va grande y a foco; las hechas
-       quedan tenues arriba y las que vienen, tenues abajo. Así se lee en contexto y se ve
-       cuánto falta, en vez de recitar renglones sueltos. */
-    .lecTexto{display:flex;flex-direction:column;gap:5px}
-    .lecFrase{font-size:16px;line-height:1.5;margin:0;opacity:.34;transition:opacity .2s}
-    .lecFrase.hecha{opacity:.34}
-    .lecFrase.hecha::before{content:'✓ ';opacity:.8}
-    .lecFrase.actual{font-size:24px;line-height:1.45;font-weight:500;opacity:1;
-                     padding:9px 0 9px 13px;border-left:3px solid currentColor;margin:5px 0}
-    .lecOido{font-size:13.5px;opacity:.65;margin:11px 0 0;font-style:italic}
-    .lecCorr{font-size:24px;line-height:1.55;margin:5px 0;padding:9px 0 9px 13px;
-             border-left:3px solid currentColor}
-    .lecCorr w{display:inline-block;padding:1px 3px;margin:0 1px;border-radius:3px}
-
-    /* Cada estado trae además un símbolo: el color nunca es la única señal. */
-    .lecCorr w.ok{}
-    .lecCorr w.dudosa{background:#F6E7C8;color:#6B4A0B}
-    .lecCorr w.cambiada{background:#F3D6CF;color:#7A2A15;text-decoration:underline wavy}
-    .lecCorr w.omitida{background:#E6E3DC;color:#6A655C;text-decoration:line-through}
-    .lecCorr w.agregada{opacity:.45;font-style:italic}
-    .lecCorr w.sin-evaluar{opacity:.75}
-    .lecCorr .oida{font-size:14px;opacity:.75;margin-left:3px}
-
-    .lecResumen w{display:inline}
-    .lecTabla{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
-    .lecTabla th{text-align:left;font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.55;padding:5px 8px 5px 0;font-weight:600}
-    .lecTabla td{padding:6px 8px 6px 0;border-top:1px solid currentColor;border-color:rgba(128,128,128,.22)}
-    .lecTabla .pal{font-weight:600}
-    .lecTabla .como{opacity:.65;font-style:italic}
-
-    @media (prefers-color-scheme:dark){
-      .lecCorr w.dudosa{background:#3A2E12;color:#E5C57C}
-      .lecCorr w.cambiada{background:#3B1D15;color:#E8A08A}
-      .lecCorr w.omitida{background:#26241F;color:#8A857B}
-    }
-    @media (max-width:640px){ .lecFrase,.lecCorr{font-size:20px} }
-  </style>
-
   <section id="secPregunta">
     <h2 class="rotulo">El entrevistador</h2>
     <div class="tarjeta">
@@ -281,10 +278,9 @@
   <div class="avisos" id="avisos"></div>
 
   <p class="pie">
-    El audio sale por los parlantes y el micrófono se abre solo cuando el entrevistador terminó de hablar.
-    Las métricas (palabras por minuto, muletillas) las calcula el código, no el modelo: son aritmética sobre
-    el transcript y los bytes de audio. El juicio de contenido e inglés sí es del modelo, y va por separado
-    para que puedas desconfiar de uno sin desconfiar del otro.
+    El audio sale por los parlantes y el micrófono se abre cuando el entrevistador terminó de hablar.
+    Las métricas (palabras por minuto, muletillas) las calcula el código sobre el transcript y la duración
+    del audio. El juicio de contenido e inglés es del modelo y se muestra aparte.
   </p>
 </div>
 
@@ -393,7 +389,7 @@
     }).join('');
   }
 
-  /** items de alineación → HTML con cada palabra marcada. */
+  /** Convierte los items de alineación en HTML, con cada palabra marcada. */
   function htmlPalabras(items) {
     return (items || []).map(function (it, i) {
       var txt = it.tipo === 'agregada' ? it.oida : it.esperada;
@@ -401,7 +397,7 @@
       if (it.tipo === 'cambiada' && it.oida) extra = '<span class="oida">se oyó «' + esc(it.oida) + '»</span>';
       var clic = (it.tipo === 'cambiada' || it.tipo === 'omitida' || it.tipo === 'dudosa')
         ? ' data-i="' + i + '" title="Escuchar cómo se dice"' : '';
-      return '<w class="' + it.tipo + '"' + clic + '>' + esc(txt) + '</w>' + extra;
+      return '<span class="palabra ' + it.tipo + '"' + clic + '>' + esc(txt) + '</span>' + extra;
     }).join(' ');
   }
 
@@ -409,9 +405,8 @@
   var ultimosItems = [];
 
   /**
-   * Fragmento correcto alrededor de una palabra: dos antes y dos después.
-   * Se oye el grupo y no la palabra sola porque los errores que importan son de habla
-   * encadenada; "out" aislado no entrena lo que falló en "out to more".
+   * Fragmento correcto alrededor de una palabra: dos antes y dos después, porque muchos errores
+   * son de habla encadenada.
    */
   function fragmento(i) {
     var a = Math.max(0, i - 2), b = Math.min(ultimosItems.length, i + 3);
@@ -440,8 +435,7 @@
     if (!malas.length) { $('drill').hidden = true; return; }
 
     $('drill').innerHTML = '<h4>Practica esto</h4>' +
-      '<p class="pista">Escucha el grupo completo y repítelo en voz alta. Los errores que cuestan ' +
-      'son de habla encadenada, no de palabras sueltas.</p><ul>' +
+      '<p class="pista">Escucha el grupo completo y repítelo en voz alta.</p><ul>' +
       malas.map(function (m) {
         var oida = (m.it.tipo === 'cambiada' && m.it.oida)
           ? '<span class="mal">se te oyó «' + esc(m.it.oida) + '»</span>'
@@ -459,7 +453,7 @@
 
   /** Clic sobre una palabra marcada: oír su fragmento. */
   function activarClicPalabras(cont) {
-    Array.prototype.forEach.call(cont.querySelectorAll('w[data-i]'), function (el) {
+    Array.prototype.forEach.call(cont.querySelectorAll('.palabra[data-i]'), function (el) {
       el.addEventListener('click', function () { decir(fragmento(Number(el.getAttribute('data-i')))); });
     });
   }
@@ -521,7 +515,7 @@
 
   function pintarFrase(d) {
     $('lecMeta').textContent = d.ronda + ' · ' + d.pregunta +
-      '  —  frase ' + d.indiceFrase + ' de ' + d.totalEnLectura;
+      ' · frase ' + d.indiceFrase + ' de ' + d.totalEnLectura;
     lecFrases = d.frases || [d.texto];
     lecIdx = d.indiceFrase - 1;
     dibujarTexto(null);
@@ -699,7 +693,7 @@
       html += '<div class="eje"><h4>Entrega</h4><p>' + esc(e.entrega.comentario) + '</p></div>';
     }
     if (e.reescritura) {
-      html += '<div class="reescritura"><em>Dilo así — léelo en voz alta</em>' + esc(e.reescritura) + '</div>';
+      html += '<div class="reescritura"><em>Dilo así. Léelo en voz alta</em>' + esc(e.reescritura) + '</div>';
     }
     if (e.una_cosa) {
       html += '<div class="unaCosa"><b>Una sola cosa para la próxima:</b> ' + esc(e.una_cosa) + '</div>';

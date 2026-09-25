@@ -1,16 +1,14 @@
 /**
- * Cartesia TTS — le da voz al entrevistador simulado.
+ * Cartesia TTS: le da voz al entrevistador simulado.
  *
- * Importante: acá NO se usa una voz clonada tuya. La voz es la del entrevistador, y conviene
- * que suene distinta a la tuya para que la sesión se sienta como una entrevista y no como un
- * eco. `CARTESIA_VOICE_ID` apunta a cualquier voz del catálogo de Cartesia; elige una nativa
- * de inglés, que es contra lo que te conviene practicar el oído.
+ * La voz es la del entrevistador, no un clon de la tuya. `CARTESIA_VOICE_ID` apunta a
+ * cualquier voz del catálogo de Cartesia; conviene una nativa de inglés.
  *
  * Streaming: abre un WebSocket a Cartesia, manda el texto, y entrega los chunks de audio por
  * `onChunk(Buffer)` a medida que llegan, para que la pregunta empiece a sonar antes de estar
  * generada entera.
  *
- * Salida: PCM 16-bit LE, mono, 24 kHz (raw) → va a `audioPlayer.js` → parlantes.
+ * Salida: PCM 16-bit LE mono a SAMPLE_RATE (24 kHz por defecto), que reproduce audioPlayer.js.
  */
 
 const WebSocket = require('ws');
@@ -24,24 +22,20 @@ const IDIOMA = process.env.CARTESIA_LANGUAGE || 'en';
 // velocidad.
 const SAMPLE_RATE = Number(process.env.CARTESIA_SAMPLE_RATE ?? 24000);
 
-/**
- * Controles de generación. Medido contra la API: sin generation_config los picos salen a
- * ~-20 dBFS; con volume 1.5 suben a ~-11.6, o sea +8.5 dB desde el propio TTS, que es mejor
- * que amplificar después.
- */
-// speed 1.0 a propósito: un entrevistador acelerado te entrena a entender rápido antes de
-// entender bien. Si ya te resulta fácil, súbelo a 1.1–1.2 desde el .env — ese es el ejercicio.
+// Controles de generación. `volume` sube el nivel desde el propio TTS en vez de amplificar
+// después. `speed` parte en 1.0; cuando ya sigas al entrevistador cómodo, súbelo a 1.1 o 1.2
+// desde el .env.
 const GENERATION_CONFIG = {
   speed: Number(process.env.CARTESIA_SPEED ?? 1.0),
   volume: Number(process.env.CARTESIA_VOLUME ?? 1.5),
 };
-// Timeout POR INACTIVIDAD: si Cartesia no manda ningún mensaje por este tiempo, abortamos.
-// (Antes era un tope total de 20s, que cortaba respuestas largas a la mitad.)
+// Timeout por inactividad: si Cartesia no manda ningún mensaje en este tiempo, se aborta. Es
+// por inactividad y no un tope total, para no cortar textos largos.
 const IDLE_TIMEOUT_MS = 15_000;
 
 /**
  * Sintetiza `text` y entrega PCM por `onChunk`. Resuelve cuando Cartesia manda 'done'
- * (o cuando se aborta vía `signal`, para el mute).
+ * (o cuando se aborta vía `signal`).
  *
  * @param {string} text
  * @param {(chunk: Buffer) => void} onChunk

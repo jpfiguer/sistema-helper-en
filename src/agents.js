@@ -5,9 +5,8 @@
  *   evaluar()      juzga la respuesta que ya diste, en español, y la reescribe
  *
  * Están separados a propósito, con historiales distintos. El entrevistador no ve el feedback
- * (si lo viera, empezaría a corregirte en vivo y eso rompe la simulación) y el evaluador no ve
- * el resto de la entrevista (juzga una respuesta contra su pregunta, nada más). Mezclarlos fue
- * lo primero que se probó y produjo entrevistadores que enseñaban en vez de entrevistar.
+ * (si lo viera, empezaría a corregirte en vivo) y el evaluador no ve el resto de la entrevista:
+ * juzga una respuesta contra su pregunta.
  *
  * Temperaturas distintas por la misma razón: el entrevistador conviene variado (0.7) para que
  * no haga siempre la misma repregunta; el evaluador conviene estable (0.2) para que la misma
@@ -23,9 +22,8 @@ const { promptEvaluador, mensajeDeEvaluacion } = require('./prompts/evaluator');
 // groq-sdk exporta la clase como default (interop CommonJS: require() puede dar el namespace).
 const GroqClient = Groq.default || Groq.Groq || Groq;
 
-// Groq rota su catálogo y retira modelos sin aviso: llama-3.3-70b-versatile, que era el
-// default original, empezó a devolver 404 en septiembre de 2026. Si esto vuelve a fallar,
-// `npm run check` lo dice con el error exacto y la lista viva está en /v1/models.
+// Groq retira modelos de su catálogo. Si el default deja de existir, `npm run check` muestra
+// el error de la API, y /v1/models tiene la lista vigente.
 const MODELO = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const MODELO_EVAL = process.env.GROQ_MODEL_EVAL || MODELO;
 const MAX_TURNOS_HISTORIAL = 8;
@@ -75,9 +73,9 @@ async function entrevistar({
 }
 
 /**
- * Evalúa una respuesta ya dicha. Devuelve el objeto del prompt, o un objeto degradado si el
- * modelo no devolvió JSON válido — nunca tira: perder el feedback de una respuesta no puede
- * cortar la sesión de práctica.
+ * Evalúa una respuesta ya dicha. Devuelve el objeto del prompt, o un objeto degradado con el
+ * texto crudo si el modelo no devolvió JSON válido. Los errores de la API (red, clave, modelo)
+ * sí se propagan: server.js los muestra como aviso y la sesión sigue.
  *
  * @param {object} p
  * @param {string} p.pregunta
