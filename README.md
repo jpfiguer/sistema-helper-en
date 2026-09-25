@@ -306,6 +306,8 @@ test/
   report.test.js      qué sesiones entran en la comparación del reporte
   server.test.js      solo loopback, y el WebSocket solo desde la propia página
   ttsCache.test.js    un clip solo se sirve con la voz con que se generó
+.github/workflows/
+  ci.yml              npm ci y npm test con Node 22 en cada push a main y en cada pull request
 ```
 
 ---
