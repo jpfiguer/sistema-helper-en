@@ -78,6 +78,10 @@ minuto sirven más para comparar sesiones entre sí que como valor absoluto.
 - **La densidad de muletillas tiene falsos positivos.** `like` y `actually` suman aunque estén
   bien usadas. Sirve para ver la tendencia entre sesiones; en una respuesta suelta puede
   exagerar.
+- **Los `um` y `uh` existen porque se le piden a Deepgram.** Si no se le pide, Deepgram los borra
+  del transcript. El listener manda `filler_words=true`, que Deepgram solo acepta en inglés: con
+  otro `DEEPGRAM_LANGUAGE` no se pide y esos dos no se pueden contar. `uh-huh`, `uh-uh` y
+  `nuh-uh` son un sí o un no, así que no suman.
 - **El silencio antes de arrancar mide duda, pero también tiempo para pensar.** Una pausa
   antes de una pregunta de arquitectura es normal. La bandera aparece sobre 6 s.
 
@@ -150,10 +154,12 @@ dices. Entonces:
 Para eso hace falta una API que puntúe fonema por fonema (Azure Speech tiene una); este
 proyecto no la usa.
 
-**Dos ajustes en la comparación:** las contracciones se expanden en ambos lados, con apóstrofo
-recto o curvo (si no, cada `don't` aparecería como omitida más agregada), y los números escritos
-con dígitos no se evalúan: el texto dice `2,700` y tú dices *twenty-seven hundred*, y las dos
-lecturas son correctas.
+**Tres ajustes en la comparación:** las contracciones se expanden en ambos lados, con apóstrofo
+recto o curvo (si no, cada `don't` aparecería como omitida más agregada); los números escritos
+con dígitos no se evalúan, porque el texto dice `2,700` y tú dices *twenty-seven hundred*, y las
+dos lecturas son correctas; y los rellenos que transcribe Deepgram (`um`, `uh`, `mhmm`) salen
+antes de alinear y se cuentan aparte, para que un `um` no quede emparejado con una palabra del
+texto.
 
 **Largo de las frases: hasta 20 palabras.** Es una respiración y un `final` de Deepgram. Más
 largo y el endpointing parte la frase, la alineación queda a medias y el feedback culpa a
@@ -302,6 +308,7 @@ scripts/
   report.js           npm run reporte: progreso entre sesiones
 test/
   alignment.test.js   alineación y set de lectura
+  deepgramListener.test.js  parámetros de la conexión con Deepgram
   metrics.test.js     métricas, salidas virtuales, entrevistador y evaluador
   report.test.js      qué sesiones entran en la comparación del reporte
   server.test.js      solo loopback, y el WebSocket solo desde la propia página

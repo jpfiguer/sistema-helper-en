@@ -49,6 +49,19 @@ test('cuenta muletillas de una palabra y de frase sin contarlas dos veces', () =
   assert.equal(total, 6);  // so, um, you know, the thing is, like, basically
 });
 
+test('los rellenos que transcribe Deepgram cuentan, y el sí o el no con guion no', () => {
+  const { detalle, total } = contarRellenos('we um moved the uh pipeline, mhmm, to streaming');
+  assert.equal(detalle.um, 1);
+  assert.equal(detalle.uh, 1);
+  assert.equal(detalle.mhmm, 1);
+  assert.equal(total, 3);
+
+  // "uh-huh" y "nuh-uh" son un sí y un no: su "uh" no suma como muletilla
+  const siNo = contarRellenos('uh-huh, that works, and nuh-uh, not that one');
+  assert.equal(siNo.detalle.uh, undefined);
+  assert.equal(siNo.total, 0);
+});
+
 test('so, well y right cuentan solo al abrir la respuesta', () => {
   // En medio de la frase son vocabulario: "it works well", "the right answer", "so we shipped".
   const medio = contarRellenos('it works well and it is the right answer, so we shipped it');

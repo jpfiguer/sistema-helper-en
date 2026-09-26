@@ -39,6 +39,9 @@ const DEFAULTS = {
   interimResults: true,
   vadEvents: true,
   utteranceEndMs: 1000,
+  // Sin esto Deepgram borra "uh" y "um" del transcript y no hay muletillas que contar.
+  // Deepgram solo lo acepta en inglés, así que con otro idioma no se pide.
+  fillerWords: true,
 };
 
 // Deepgram cierra la conexión tras ~10s sin audio si no mandamos KeepAlive.
@@ -77,6 +80,7 @@ class DeepgramListener extends EventEmitter {
       vad_events: String(o.vadEvents),
       utterance_end_ms: String(o.utteranceEndMs),
     });
+    if (o.fillerWords && /^en\b/i.test(o.language)) params.set('filler_words', 'true');
     return `wss://api.deepgram.com/v1/listen?${params.toString()}`;
   }
 

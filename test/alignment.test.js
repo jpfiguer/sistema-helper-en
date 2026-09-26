@@ -26,6 +26,14 @@ function oidas(frase, conf = 0.99) {
 
 // ── normalización ─────────────────────────────────────────────────────────────
 
+test('los rellenos oídos no se comparan contra el texto y se cuentan aparte', () => {
+  const r = compararFrase('the model is ready', ['um', 'the', 'model', 'uh,', 'is', 'ready', 'uh-huh']);
+  assert.equal(r.resumen.rellenos, 2);
+  assert.equal(r.resumen.agregada, 0);
+  assert.equal(r.resumen.cambiada, 0);
+  assert.equal(r.resumen.precision, 1);
+});
+
 test('las contracciones se expanden en ambos lados', () => {
   assert.equal(normalizar("I don't know"), 'i do not know');
   assert.equal(normalizar('I do not know'), 'i do not know');

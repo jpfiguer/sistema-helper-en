@@ -54,18 +54,30 @@ function tokenizar(texto) {
   return t.split(' ').map((w) => w.replace(/^[.,]+|[.,]+$/g, '')).filter(Boolean);
 }
 
+/** Rellenos que Deepgram transcribe con filler_words. No son parte del texto leído. */
+const RELLENOS_OIDOS = new Set(['um', 'uh', 'mhmm', 'mm', 'mmm', 'hmm']);
+/** Un sí o un no dicho de pasada ("uh-huh", "nuh-uh"): tampoco se compara, pero no es relleno. */
+const SI_NO_OIDOS = /(?<![\p{L}-])(?:uh-huh|uh-uh|nuh-uh|mm-mm)(?![\p{L}-])/giu;
+
 /**
- * Convierte las palabras de Deepgram en tokens comparables, con su confianza y sus tiempos.
- * Acepta tanto el formato crudo (`{word, confidence, start, end}`) como una lista de strings.
+ * Separa las palabras de Deepgram en tokens comparables y rellenos.
+ *
+ * Los rellenos salen antes de alinear: si no, un "um" puede quedar emparejado con una palabra
+ * del texto y marcarla como cambiada. Acepta el formato crudo (`{word, confidence, start, end}`)
+ * o una lista de strings.
+ *
+ * @returns {{tokens: Array, rellenos: number}}
  */
-function tokenizarOidas(palabras) {
-  if (!Array.isArray(palabras)) return [];
-  const out = [];
+function separarRellenos(palabras) {
+  const tokens = [];
+  let rellenos = 0;
+  if (!Array.isArray(palabras)) return { tokens, rellenos };
   for (const p of palabras) {
     const crudo = typeof p === 'string' ? p : (p.word ?? p.punctuated_word ?? '');
     const conf = typeof p === 'string' ? null : (typeof p.confidence === 'number' ? p.confidence : null);
-    for (const tok of tokenizar(crudo)) {
-      out.push({
+    for (const tok of tokenizar(String(crudo).replace(SI_NO_OIDOS, ' '))) {
+      if (RELLENOS_OIDOS.has(tok)) { rellenos += 1; continue; }
+      tokens.push({
         token: tok,
         confianza: conf,
         inicio: typeof p === 'string' ? null : (p.start ?? null),
@@ -73,7 +85,12 @@ function tokenizarOidas(palabras) {
       });
     }
   }
-  return out;
+  return { tokens, rellenos };
+}
+
+/** Tokens comparables de lo que oyó Deepgram, sin los rellenos. */
+function tokenizarOidas(palabras) {
+  return separarRellenos(palabras).tokens;
 }
 
 /**
@@ -163,7 +180,7 @@ function clasificar(par, umbral) {
  */
 function compararFrase(esperado, palabrasOidas, { umbral = CONFIANZA_DUDOSA } = {}) {
   const esperados = tokenizar(esperado);
-  const oidos = tokenizarOidas(palabrasOidas);
+  const { tokens: oidos, rellenos } = separarRellenos(palabrasOidas);
   const items = alinearTokens(esperados, oidos).map((p) => clasificar(p, umbral));
 
   const cuenta = { ok: 0, dudosa: 0, cambiada: 0, omitida: 0, agregada: 0, 'sin-evaluar': 0 };
@@ -181,6 +198,8 @@ function compararFrase(esperado, palabrasOidas, { umbral = CONFIANZA_DUDOSA } = 
       // Proporción de palabras que salieron limpias. No es una nota de pronunciación:
       // es cuántas palabras el transcriptor reconoció sin dudar.
       precision: evaluables ? Number((limpias / evaluables).toFixed(3)) : null,
+      // Rellenos oídos mientras leías. No entran en la comparación ni en la precisión.
+      rellenos,
     },
     problemas: items.filter((it) => it.tipo === 'cambiada' || it.tipo === 'omitida' || it.tipo === 'dudosa'),
   };
@@ -256,6 +275,7 @@ module.exports = {
   palabrasATrabajar,
   tokenizar,
   tokenizarOidas,
+  separarRellenos,
   alinearTokens,
   normalizar,
   CONFIANZA_DUDOSA,

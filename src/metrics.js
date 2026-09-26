@@ -42,7 +42,7 @@ const RELLENOS_FRASE = [
  * casi siempre son relleno ("literally"). "like" y "actually" dan algún falso positivo.
  */
 const RELLENOS_PALABRA = [
-  'um', 'uh', 'ehm', 'eh', 'mmm', 'hmm', 'ah', 'er',
+  'um', 'uh', 'ehm', 'eh', 'mmm', 'hmm', 'mhmm', 'mm', 'ah', 'er',
   'like', 'basically', 'actually', 'literally', 'obviously',
 ];
 
@@ -52,6 +52,12 @@ const RELLENOS_PALABRA = [
  * quiere medir.
  */
 const RELLENOS_APERTURA = ['so', 'well', 'okay', 'ok', 'right', 'anyway', 'yeah', 'yes'];
+
+/**
+ * Con filler_words, Deepgram también transcribe "uh-huh", "uh-uh", "nuh-uh" y "mm-mm". Son un
+ * sí o un no, no relleno, y se sacan antes de contar para que su "uh" no sume.
+ */
+const SI_NO = /(?<![\p{L}-])(?:uh-huh|uh-uh|nuh-uh|mm-mm)(?![\p{L}-])/giu;
 
 /** Palabras en español que se cuelan cuando falta vocabulario. */
 const FUGAS_ES = [
@@ -77,6 +83,7 @@ function tokenizar(texto) {
  * remueven antes de tokenizar, para que "you know" no sume también como "know" suelto.
  */
 function contarRellenos(texto) {
+  texto = String(texto || '').replace(SI_NO, ' ');
   let t = ` ${normalizar(texto)} `;
   const detalle = {};
   let total = 0;
